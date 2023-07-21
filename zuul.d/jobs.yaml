@@ -5,7 +5,7 @@
       - name: opendev-buildset-registry
         soft: false
     provides:
-      - java-spring-boot-demo-container-image
+      - nebulous-iot-dpp-orchestrator-container-images
     description: Build the container images.
     files: &image_files
       - ^java-spring-boot-demo/
@@ -23,7 +23,7 @@
       - name: opendev-buildset-registry
         soft: false
     provides:
-      - java-spring-boot-demo-container-image
+      - nebulous-iot-dpp-orchestrator-container-images
     description: Build and upload the container images.
     files: *image_files
     vars: *image_vars
@@ -62,7 +62,7 @@
       - name: nebulous-iot-dpp-orchestrator-upload-container-images
         soft: true
     requires:
-      - java-spring-boot-demo-container-image
+      - nebulous-iot-dpp-orchestrator-container-images
     description: Deploy a Kubernetes cluster and apply charts.
     vars:
       helm_charts:
