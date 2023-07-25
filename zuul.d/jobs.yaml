@@ -15,6 +15,9 @@
         - context: java-spring-boot-demo
           registry: quay.io
           repository: quay.io/nebulous/iot-dpp-orchestrator-java-spring-boot-demo
+          namespace: nebulous
+          repo_shortname: iot-dpp-orchestrator-java-spring-boot-demo
+          repo_description: ""
 
 - job:
     name: nebulous-iot-dpp-orchestrator-upload-container-images

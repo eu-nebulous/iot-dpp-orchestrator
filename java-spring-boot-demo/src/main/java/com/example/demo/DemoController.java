@@ -7,8 +7,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class DemoController {
 
     @RequestMapping("/")
-    public Object root() {
-        return null;
+    public String root() {
+        return "test";
     }
 
 }
