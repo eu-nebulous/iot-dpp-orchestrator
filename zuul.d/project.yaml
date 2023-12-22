@@ -1,20 +1,12 @@
 - project:
     check:
       jobs:
-        - opendev-buildset-registry
-        - nebulous-iot-dpp-orchestrator-helm-lint
-        - nebulous-iot-dpp-orchestrator-build-container-images
-        - nebulous-iot-dpp-orchestrator-hadolint
-        - nebulous-platform-apply-helm-charts
+        - nebulous-iot-dpp-orchestrator-build-java-libraries
         - nox-linters
     gate:
       jobs:
-        - opendev-buildset-registry
-        - nebulous-iot-dpp-orchestrator-helm-lint
-        - nebulous-iot-dpp-orchestrator-upload-container-images
-        - nebulous-iot-dpp-orchestrator-hadolint
-        - nebulous-platform-apply-helm-charts
+        - nebulous-iot-dpp-orchestrator-build-java-libraries
         - nox-linters
     promote:
       jobs:
-        - nebulous-iot-dpp-orchestrator-promote-container-images
+        - nebulous-iot-dpp-orchestrator-upload-java-libraries

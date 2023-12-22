@@ -1,2 +1,12 @@
+/iot_dpp/.classpath
+/iot_dpp/.gitattributes
+/iot_dpp/.project
+/iot_dpp/.settings/org.eclipse.buildship.core.prefs
+/iot_dpp/.settings/org.eclipse.jdt.core.prefs
+/iot_dpp/gradlew.bat
+/iot_dpp/gradle/wrapper/gradle-wrapper.jar
+/iot_dpp/gradle/wrapper/gradle-wrapper.properties
+/iot_dpp/gradlew
 __pycache__/
 .nox/
+/iot_dpp/maven-repo
