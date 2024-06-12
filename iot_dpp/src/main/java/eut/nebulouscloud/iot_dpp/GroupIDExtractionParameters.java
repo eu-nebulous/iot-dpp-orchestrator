@@ -23,6 +23,13 @@ public class GroupIDExtractionParameters {
 		this.source = source;
 		this.expression = expression;
 	}
+	
+
+	public GroupIDExtractionParameters() {
+		super();
+	}
+	
+
 
 	public GroupIDExpressionSource getSource() {
 		return source;

@@ -3,7 +3,9 @@ package eut.nebulouscloud.iot_dpp;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 //remove
 import java.util.Date;
 import java.util.HashMap;
@@ -35,6 +37,8 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import eut.nebulouscloud.iot_dpp.GroupIDExtractionParameters.GroupIDExpressionSource;
 
 class MessageGroupIdAnnotationPluginTest {
@@ -42,10 +46,12 @@ class MessageGroupIdAnnotationPluginTest {
 
 	/**
 	 * Creates a local ActiveMQ server listening at localhost:61616. The server
-	 * accepts requests from any user. Configures the MessageGroupIDAnnotationPlugin and
-	 * sets it to use the provided groupIdExtractionParameterPerTopic dict. 
+	 * accepts requests from any user. Configures the MessageGroupIDAnnotationPlugin
+	 * and sets it to use the provided groupIdExtractionParameterPerTopic dict.
 	 * 
-	 * @param events The groupIdExtractionParameterPerTopic dict. Its contents can be changed by the test code during the test execution and the plugin will react accordingly.
+	 * @param events The groupIdExtractionParameterPerTopic dict. Its contents can
+	 *               be changed by the test code during the test execution and the
+	 *               plugin will react accordingly.
 	 * @return the created EmbeddedActiveMQ instance.
 	 * @throws Exception
 	 */
@@ -61,8 +67,8 @@ class MessageGroupIdAnnotationPluginTest {
 		config.setNodeManagerLockDirectory(foldersRoot + "/nodeManagerLock");
 		config.setPagingDirectory(foldersRoot + "/paging");
 		config.addConnectorConfiguration("serverAt" + port + "Connector", "tcp://localhost:" + port);
-		config.addAcceptorConfiguration("netty", "tcp://localhost:" + port);		
-		config.getBrokerMessagePlugins().add(new MessageGroupIDAnnotationPlugin(groupIdExtractionParameterPerTopic));		
+		config.addAcceptorConfiguration("netty", "tcp://localhost:" + port);
+		config.getBrokerMessagePlugins().add(new MessageGroupIDAnnotationPlugin(groupIdExtractionParameterPerTopic));
 		EmbeddedActiveMQ server = new EmbeddedActiveMQ();
 		server.setSecurityManager(new ActiveMQSecurityManager() {
 			@Override
@@ -85,16 +91,15 @@ class MessageGroupIdAnnotationPluginTest {
 	static Map<String, GroupIDExtractionParameters> groupIdExtractionParameterPerAddress = new HashMap<String, GroupIDExtractionParameters>();
 	static Session session;
 	static Connection connection;
+
 	@BeforeAll
 	static void createServer() throws Exception {
 		LOGGER.info("createServer");
 		server = createLocalServer(6161, groupIdExtractionParameterPerAddress);
-		ActiveMQJMSConnectionFactory connectionFactory = new ActiveMQJMSConnectionFactory("tcp://localhost:6161","artemis", "artemis"
-				);
+		ActiveMQJMSConnectionFactory connectionFactory = new ActiveMQJMSConnectionFactory("tcp://localhost:6161",
+				"artemis", "artemis");
 		connection = connectionFactory.createConnection();
 		connection.start();
-		
-		
 
 	}
 
@@ -111,14 +116,51 @@ class MessageGroupIdAnnotationPluginTest {
 		session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
 		groupIdExtractionParameterPerAddress.clear();
 	}
-	
+
 	@AfterEach
 	void adter() {
-		if(session!=null) {try{session.close();}catch(Exception ex) {}}
+		if (session != null) {
+			try {
+				session.close();
+			} catch (Exception ex) {
+			}
+		}
+	}
+
+	
+	/**
+	 * Test the construction of the plugin reading the config from a file
+	 * @throws IOException
+	 */
+	@Test
+	void createPluginTest() throws IOException {		
+		MessageGroupIDAnnotationPlugin plugin = new MessageGroupIDAnnotationPlugin();
+		assertTrue(plugin.annotator.groupIdExtractionParameterPerAddress.isEmpty());
+		
+		plugin = new MessageGroupIDAnnotationPlugin("ssadsadsadsa");
+		assertTrue(plugin.annotator.groupIdExtractionParameterPerAddress.isEmpty());
+		
+		Map<String, GroupIDExtractionParameters> map = new HashMap<String, GroupIDExtractionParameters>();
+		map.put("A", new GroupIDExtractionParameters(GroupIDExpressionSource.BODY_JSON, "address.city"));
+		map.put("B", new GroupIDExtractionParameters(GroupIDExpressionSource.BODY_XML, "address.city"));
+		Path tempPath = Files.createTempFile("GroupIDExtractionParameters", ".json");
+		ObjectMapper om = new ObjectMapper();
+		Files.write(tempPath, om.writeValueAsBytes(map));
+		
+		plugin = new MessageGroupIDAnnotationPlugin(tempPath.toString());		
+		assertTrue(!plugin.annotator.groupIdExtractionParameterPerAddress.isEmpty());
+		assertEquals(2, plugin.annotator.groupIdExtractionParameterPerAddress.keySet().size());
+		assertTrue(plugin.annotator.groupIdExtractionParameterPerAddress.containsKey("A"));
+		assertTrue(plugin.annotator.groupIdExtractionParameterPerAddress.get("A").getExpression().equals(map.get("A").getExpression()));
+		assertTrue(plugin.annotator.groupIdExtractionParameterPerAddress.get("A").getSource().equals(map.get("A").getSource()));
+		assertTrue(plugin.annotator.groupIdExtractionParameterPerAddress.containsKey("B"));
+		assertTrue(plugin.annotator.groupIdExtractionParameterPerAddress.get("B").getExpression().equals(map.get("B").getExpression()));
+		assertTrue(plugin.annotator.groupIdExtractionParameterPerAddress.get("B").getSource().equals(map.get("B").getSource()));
 	}
 
 	/**
-	 * Test it can extract a simple JSON value 
+	 * Test it can extract a simple JSON value
+	 * 
 	 * @throws Exception
 	 */
 	@Test
@@ -134,13 +176,15 @@ class MessageGroupIdAnnotationPluginTest {
 		TextMessage originalMessage = session.createTextMessage(text);
 		producer.send(originalMessage);
 		Message message = consumer.receive();
-		String value = ((ActiveMQTextMessage)message).getCoreMessage().getStringProperty(MessageGroupIDAnnotationPlugin.MESSAGE_GROUP_ANNOTATION.toString());
+		String value = ((ActiveMQTextMessage) message).getCoreMessage()
+				.getStringProperty(MessageGroupIDAnotator.MESSAGE_GROUP_ANNOTATION.toString());
 		assertEquals("Lleida", value);
 
 	}
-	
+
 	/**
 	 * In case of invalid message body, MESSAGE_GROUP_ANNOTATION should remain null
+	 * 
 	 * @throws Exception
 	 */
 	@Test
@@ -156,13 +200,15 @@ class MessageGroupIdAnnotationPluginTest {
 		TextMessage originalMessage = session.createTextMessage(text);
 		producer.send(originalMessage);
 		Message message = consumer.receive();
-		String value = ((ActiveMQTextMessage)message).getCoreMessage().getStringProperty(MessageGroupIDAnnotationPlugin.MESSAGE_GROUP_ANNOTATION.toString());
+		String value = ((ActiveMQTextMessage) message).getCoreMessage()
+				.getStringProperty(MessageGroupIDAnotator.MESSAGE_GROUP_ANNOTATION.toString());
 		assertEquals(null, value);
 
 	}
-	
+
 	/**
-	 * Test it can extract a complex JSON value 
+	 * Test it can extract a complex JSON value
+	 * 
 	 * @throws Exception
 	 */
 	@Test
@@ -178,14 +224,15 @@ class MessageGroupIdAnnotationPluginTest {
 		TextMessage originalMessage = session.createTextMessage(text);
 		producer.send(originalMessage);
 		Message message = consumer.receive();
-		String value = ((ActiveMQTextMessage)message).getCoreMessage().getStringProperty(MessageGroupIDAnnotationPlugin.MESSAGE_GROUP_ANNOTATION.toString());
+		String value = ((ActiveMQTextMessage) message).getCoreMessage()
+				.getStringProperty(MessageGroupIDAnotator.MESSAGE_GROUP_ANNOTATION.toString());
 		assertEquals("{city=Lleida, street=C\\Cavallers}", value);
 
 	}
-	
-	
+
 	/**
-	 * Test it can extract a simple XML value 
+	 * Test it can extract a simple XML value
+	 * 
 	 * @throws Exception
 	 */
 	@Test
@@ -197,26 +244,22 @@ class MessageGroupIdAnnotationPluginTest {
 		Destination destination = session.createQueue(address);
 		MessageProducer producer = session.createProducer(destination);
 		MessageConsumer consumer = session.createConsumer(destination);
-		String text = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n"
-				+ "<root>\r\n"
-				+ "   <address>\r\n"
-				+ "      <city>Lleida</city>\r\n"
-				+ "      <street>C\\Cavallers</street>\r\n"
-				+ "   </address>\r\n"
-				+ "   <age>22</age>\r\n"
-				+ "   <name>Jon doe</name>\r\n"
-				+ "</root>";
+		String text = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n" + "<root>\r\n" + "   <address>\r\n"
+				+ "      <city>Lleida</city>\r\n" + "      <street>C\\Cavallers</street>\r\n" + "   </address>\r\n"
+				+ "   <age>22</age>\r\n" + "   <name>Jon doe</name>\r\n" + "</root>";
 		TextMessage originalMessage = session.createTextMessage(text);
 		producer.send(originalMessage);
 		Message message = consumer.receive();
-		
-		String value = ((ActiveMQTextMessage)message).getCoreMessage().getStringProperty(MessageGroupIDAnnotationPlugin.MESSAGE_GROUP_ANNOTATION.toString());
+
+		String value = ((ActiveMQTextMessage) message).getCoreMessage()
+				.getStringProperty(MessageGroupIDAnotator.MESSAGE_GROUP_ANNOTATION.toString());
 		assertEquals("Lleida", value);
 
 	}
-	
+
 	/**
-	 * Test it can extract a complex XML value 
+	 * Test it can extract a complex XML value
+	 * 
 	 * @throws Exception
 	 */
 	@Test
@@ -228,22 +271,22 @@ class MessageGroupIdAnnotationPluginTest {
 		Destination destination = session.createQueue(address);
 		MessageProducer producer = session.createProducer(destination);
 		MessageConsumer consumer = session.createConsumer(destination);
-		String text = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n"
-				+ "<root>\r\n"
-				+ "   <address>\r\n"
-				+ "      <city>Lleida</city>\r\n"
-				+ "      <street>C\\Cavallers</street>\r\n"
-				+ "   </address>\r\n"
-				+ "   <age>22</age>\r\n"
-				+ "   <name>Jon doe</name>\r\n"
-				+ "</root>";
+		String text = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n" + "<root>\r\n" + "   <address>\r\n"
+				+ "      <city>Lleida</city>\r\n" + "      <street>C\\Cavallers</street>\r\n" + "   </address>\r\n"
+				+ "   <age>22</age>\r\n" + "   <name>Jon doe</name>\r\n" + "</root>";
 		TextMessage originalMessage = session.createTextMessage(text);
 		producer.send(originalMessage);
 		Message message = consumer.receive();
-		String value = ((ActiveMQTextMessage)message).getCoreMessage().getStringProperty(MessageGroupIDAnnotationPlugin.MESSAGE_GROUP_ANNOTATION.toString());
-		assertTrue(value!=null);
+		String value = ((ActiveMQTextMessage) message).getCoreMessage()
+				.getStringProperty(MessageGroupIDAnotator.MESSAGE_GROUP_ANNOTATION.toString());
+		assertTrue(value != null);
 		assertTrue(value.contains("Lleida"));
 		assertTrue(value.contains("Cavallers"));
 	}
 	
+	
+	
+	
+	
+
 }

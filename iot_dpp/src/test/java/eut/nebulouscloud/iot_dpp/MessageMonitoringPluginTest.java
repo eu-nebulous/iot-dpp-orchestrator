@@ -34,7 +34,11 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import eut.nebulouscloud.iot_dpp.monitoring.EMSMessageLifecycleMonitoringPlugin;
 import eut.nebulouscloud.iot_dpp.monitoring.MessageLifecycleMonitoringPlugin;
+import eut.nebulouscloud.iot_dpp.monitoring.QueuesMonitoringMessage;
+import eut.nebulouscloud.iot_dpp.monitoring.QueuesMonitoringPlugin;
+import eut.nebulouscloud.iot_dpp.monitoring.QueuesMonitoringPlugin.QueuesMonitoringPluginConsumer;
 import eut.nebulouscloud.iot_dpp.monitoring.events.MessageAcknowledgedEvent;
 import eut.nebulouscloud.iot_dpp.monitoring.events.MessageDeliveredEvent;
 import eut.nebulouscloud.iot_dpp.monitoring.events.MessageLifecycleEvent;
@@ -87,9 +91,12 @@ class MessageMonitoringPluginTest {
 				config.addConnectorConfiguration("serverAt" + otherPort + "Connector", "tcp://localhost:" + otherPort);
 			}
 		}
-		MessageLifecycleMonitoringPlugin plugin = new MessageLifecycleMonitoringPlugin() {
+		
+
+		EMSMessageLifecycleMonitoringPlugin plugin = new EMSMessageLifecycleMonitoringPlugin() {
 			@Override
 			protected void notifyEvent(MessageLifecycleEvent event) {
+				//super.notifyEvent(event);
 				events.add(event);
 			}
 		};
