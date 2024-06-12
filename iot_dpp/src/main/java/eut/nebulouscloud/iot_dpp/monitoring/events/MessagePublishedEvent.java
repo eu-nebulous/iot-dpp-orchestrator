@@ -6,7 +6,7 @@ package eut.nebulouscloud.iot_dpp.monitoring.events;
 public class MessagePublishedEvent extends MessageLifecycleEvent{	
 
 	/**
-	 * The name of the pub/sub cluster where the messag was published
+	 * The name of the pub/sub cluster node where the message was published
 	 */
 	public final String node;
 	

@@ -8,6 +8,21 @@
 	<artifactId>iot-dpp-orchestrator</artifactId>
 	<version>0.1.0</version>
 	<packaging>jar</packaging>
+
+
+	<distributionManagement>
+		<snapshotRepository>
+			<id>ossrh</id>
+			<url>https://s01.oss.sonatype.org/content/repositories/snapshots</url>
+		</snapshotRepository>
+		<repository>
+			<id>ossrh</id>
+			<url>
+				https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+		</repository>
+	</distributionManagement>
+
+
 	<properties>
 		<maven.compiler.source>11</maven.compiler.source>
 		<maven.compiler.target>11</maven.compiler.target>
@@ -68,6 +83,11 @@
 		</dependency>
 		<dependency>
 			<groupId>org.apache.activemq</groupId>
+			<artifactId>artemis-stomp-protocol</artifactId>
+			<version>2.31.2</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.activemq</groupId>
 			<artifactId>artemis-jms-client</artifactId>
 			<version>2.31.2</version>
 		</dependency>
@@ -86,7 +106,7 @@
 			<groupId>org.apache.activemq</groupId>
 			<artifactId>artemis-server</artifactId>
 			<version>2.31.2</version>
-			
+
 		</dependency>
 		<dependency>
 			<groupId>org.eclipse.paho</groupId>
@@ -95,18 +115,13 @@
 			<scope>test</scope>
 		</dependency>
 
-		<dependency>
-			<groupId>eu.nebulouscloud</groupId>
-			<artifactId>exn-connector-java</artifactId>
-			<version>1.0-SNAPSHOT</version>
-			<scope>test</scope>
-		</dependency>
+		
 		<dependency>
 
 			<groupId>org.apache.qpid</groupId>
 			<artifactId>protonj2-client</artifactId>
 			<version>1.0.0-M18</version>
-			<scope>test</scope>
+			<scope>compile</scope>
 		</dependency>
 
 		<dependency>
@@ -116,18 +131,31 @@
 			<scope>test</scope>
 			<type>pom</type>
 		</dependency>
-		
+
 		<dependency>
 			<groupId>org.junit.jupiter</groupId>
 			<artifactId>junit-jupiter-api</artifactId>
 			<version>5.8.1</version>
 			<scope>test</scope>
 		</dependency>
-		
+
 	</dependencies>
 
 	<build>
 		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-shade-plugin</artifactId>
+				<version>3.3.0</version>
+				<executions>
+					<execution>
+						<phase>package</phase>
+						<goals>
+							<goal>shade</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-jar-plugin</artifactId>
@@ -140,9 +168,14 @@
 						<manifest>
 							<addDefaultSpecificationEntries>false</addDefaultSpecificationEntries>
 							<addDefaultImplementationEntries>false</addDefaultImplementationEntries>
+							<mainClass>
+								eut.nebulouscloud.fake_ems.EMSMercabarnaGenerator</mainClass>
 						</manifest>
 					</archive>
 				</configuration>
+				<executions>
+
+				</executions>
 			</plugin>
 		</plugins>
 	</build>

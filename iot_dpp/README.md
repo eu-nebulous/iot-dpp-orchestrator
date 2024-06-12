@@ -5,15 +5,55 @@ The IoT data processing pipelines orchestration tool allows users to declarative
 
 ## Documentation
 
-The repository contains the source code for two ActiveMQ Artemis plugins necessary for implementing the NebulOuS IoT data processing pipelines orchestration tool.
+The repository contains the source code for three ActiveMQ Artemis plugins necessary for implementing the NebulOuS IoT data processing pipelines orchestration tool.
 
 ### MessageGroupIDAnnotationPlugin
 
 ActiveMQ Artemis plugin for extracting the value to be used as JMSXGroupID from the message.
 
-### MessageLifecycleMonitoringPlugin
+The plugin expects a JSON file located at the path specified by NEB_IOT_DPP_GROUPID_EXTRACTION_CONFIG_PATH environment variable. This JSON file must contain,
+for each topic 
+
+### EMSMessageLifecycleMonitoringPlugin
 
 ActiveMQ Artemis plugin for tracking the lifecycle of messages inside an ActiveMQ cluster. On each step of the message lifecycle (a producer writes a message to the cluster, the message is delivered to a consumer, the consumer ACKs the message), the plugin generates events with relevant information that can be used for understanding how IoT applications components on NebulOuS are communicating.
+
+The following parameters are needed for the plugin:
+
+- ems_url (defaults to "tcp://localhost:61616")
+
+- ems_user (defaults to "aaa")
+
+- ems_password (defaults to "111")
+
+
+### EMSQueuesMonitoringPlugin
+
+Apache Artemis plugin that periodically collects usage metrics from the queues of the broker:
+- messages_count: The number of pending messages for any queue.
+- max_message_age: Age of the oldest pending message on a given queue.
+- consumers_count: The number of active consumers subscribed to a queue.
+- group_count: The number of message groupings for a queue. Messages on a queue are grouped by the value of the “JMSXGroupID” attribute associated to each message
+
+The following parameters are needed for the plugin:
+
+- topic_prefix 
+
+- query_interval_seconds (defaults to 3)
+
+- local_activemq_url (defaults to "tcp://localhost:61616")
+
+- local_activemq_user (defaults to "artemis")
+
+- local_activemq_password (defaults to "artemis")
+
+- ems_url (defaults to "tcp://localhost:61616")
+
+- ems_user (defaults to "aaa")
+
+- ems_password (defaults to "111")
+
+
 ## Installation
 
 Build the source code.

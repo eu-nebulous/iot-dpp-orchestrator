@@ -10,3 +10,4 @@
 __pycache__/
 .nox/
 /iot_dpp/maven-repo
+/iot_dpp/.settings/org.eclipse.jdt.apt.core.prefs
