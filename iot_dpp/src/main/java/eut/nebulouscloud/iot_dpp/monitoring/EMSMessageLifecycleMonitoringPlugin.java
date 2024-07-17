@@ -24,11 +24,12 @@ public class EMSMessageLifecycleMonitoringPlugin extends MessageLifecycleMonitor
 	
 	@Override
 	public void init(Map<String, String> properties) {
-		//String topicPrefix = Optional.ofNullable(properties.getOrDefault("topic_prefix", null))
-		//		.orElseThrow(() -> new IllegalStateException("topic_prefix parameter is not defined"));
-		String emsURL = properties.getOrDefault("ems_url", "tcp://localhost:61616");
-		String emsUser = properties.getOrDefault("ems_user", "aaa");
-		String emsPassword = properties.getOrDefault("ems_password", "111");
+		String emsURL = Optional.ofNullable(properties.getOrDefault("ems_url", null))
+					.orElseThrow(() -> new IllegalStateException("ems_url parameter is not defined")); 
+		String emsUser = Optional.ofNullable(properties.getOrDefault("ems_user", null))
+				.orElseThrow(() -> new IllegalStateException("ems_user parameter is not defined")); 
+		String emsPassword = Optional.ofNullable(properties.getOrDefault("ems_password", null))
+				.orElseThrow(() -> new IllegalStateException("ems_password parameter is not defined"));
 		publisher = new EventManagementSystemPublisher(emsURL, emsUser, emsPassword);		
 		LOGGER.info("Init EMSMessageLifecycleMonitoringPlugin with parameters:");
 		LOGGER.info("emsURL: "+emsURL);
