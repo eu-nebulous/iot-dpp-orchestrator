@@ -1,7 +1,7 @@
 package eut.nebulouscloud.iot_dpp.monitoring.events;
 
 /**
- * Event generated when a message is acknowledged by a client of the the pub/sub
+ * Event generated when a message is acknowledged by a client of the pub/sub
  * system
  */
 public class MessageAcknowledgedEvent extends MessageLifecycleEvent {
