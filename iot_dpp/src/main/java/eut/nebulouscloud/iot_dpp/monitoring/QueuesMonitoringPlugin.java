@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerMessagePlugin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,7 +45,7 @@ public class QueuesMonitoringPlugin implements ActiveMQServerMessagePlugin {
 
 	}
 
-	
+
 
 	public interface QueuesMonitoringPluginConsumer {
 		void consume(List<QueuesMonitoringMessage> messages);
