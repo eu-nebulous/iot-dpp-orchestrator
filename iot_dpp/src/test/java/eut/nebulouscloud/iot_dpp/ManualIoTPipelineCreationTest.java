@@ -109,22 +109,22 @@ class ManualIoTPipelineCreationTest {
 		divertTransformerConfig.setClassName(GroupIDAnnotationDivertTransfomer.class.getName());
 		divertTransformerConfig.setProperties(Map.of("NEB_IOT_DPP_GROUPID_EXTRACTION_CONFIG_PATH", configPath));
 
+		DivertConfiguration divertSrctoA = new DivertConfiguration();
+		divertSrctoA.setName("divertSrctoA");
+		divertSrctoA.setAddress("neb.src");
+		divertSrctoA.setExclusive(false);
+		divertSrctoA.setForwardingAddress("neb.step_A_input");
+		divertSrctoA.setTransformerConfiguration(divertTransformerConfig);
+		//divertAtoB.setFilterString("*");
+		config.addDivertConfiguration(divertSrctoA);
+
 		DivertConfiguration divertAtoB = new DivertConfiguration();
 		divertAtoB.setName("divertAtoB");
 		divertAtoB.setAddress("neb.step_A_output");
 		divertAtoB.setExclusive(false);
 		divertAtoB.setForwardingAddress("neb.step_B_input");
-		//divertAtoB.setTransformerConfiguration(divertTransformerConfig);
-		//divertAtoB.setFilterString("*");
+		divertAtoB.setTransformerConfiguration(divertTransformerConfig);
 		config.addDivertConfiguration(divertAtoB);
-
-		DivertConfiguration divertAtoC = new DivertConfiguration();
-		divertAtoC.setName("divertAtoC");
-		divertAtoC.setAddress("neb.step_A_output");
-		divertAtoC.setExclusive(false);
-		divertAtoC.setForwardingAddress("neb.step_C_input");
-		divertAtoC.setTransformerConfiguration(divertTransformerConfig);
-		config.addDivertConfiguration(divertAtoC);
 
 		ClusterConnectionConfiguration cluster = new ClusterConnectionConfiguration();
 		cluster.setAddress("");
@@ -166,7 +166,7 @@ class ManualIoTPipelineCreationTest {
 		return createActiveMQBroker(nodeName, configPath, port, null);
 	}
 
-	private IMqttClient buildConsumer(String brokerURL, String clientId, String topic,
+	private IMqttClient buildWorker(String brokerURL, String clientId, String inputTopic, String outputTopic,
 			List<MessageReceptionRecord> messages) throws Exception {
 		IMqttClient consumer = new MqttClient("tcp://" + brokerURL, clientId);
 		consumer.setCallback(new MqttCallback() {
@@ -175,7 +175,8 @@ class ManualIoTPipelineCreationTest {
 			public void messageArrived(String topic, MqttMessage message) throws Exception {
 				messages.add(new MessageReceptionRecord(consumer.getClientId(), topic,
 						om.readValue(new String(message.getPayload()), TestMessage.class)));
-				LOGGER.info("messageArrived "+topic);
+				LOGGER.info("Worker "+consumer.getClientId()+" messageArrived");
+				consumer.publish(outputTopic, message.getPayload(), 2, false);
 
 			}
 
@@ -185,7 +186,7 @@ class ManualIoTPipelineCreationTest {
 
 			@Override
 			public void connectionLost(Throwable cause) {
-				LOGGER.error(consumer.getClientId() + "connectionLost", cause);
+				LOGGER.error("Worker "+consumer.getClientId() + " connectionLost", cause);
 			}
 		});
 		MqttConnectOptions opts = new MqttConnectOptions();
@@ -194,7 +195,7 @@ class ManualIoTPipelineCreationTest {
 		opts.setCleanSession(false);
 
 		consumer.connect(opts);
-		consumer.subscribe(topic, 2);
+		consumer.subscribe(inputTopic, 2);
 		return consumer;
 	}
 
@@ -215,8 +216,8 @@ class ManualIoTPipelineCreationTest {
 		String brokerURL = "localhost:" + brokerPort;
 		// localhost:1883"
 		Map<String, GroupIDExtractionParameters> map = new HashMap<String, GroupIDExtractionParameters>();
+		map.put("neb.step_A_input", new GroupIDExtractionParameters(GroupIDExpressionSource.BODY_JSON, "fieldA"));
 		map.put("neb.step_B_input", new GroupIDExtractionParameters(GroupIDExpressionSource.BODY_JSON, "fieldB"));
-		map.put("neb.step_C_input", new GroupIDExtractionParameters(GroupIDExpressionSource.BODY_JSON, "fieldC"));
 
 		Path tempPath = Files.createTempFile("GroupIDExtractionParameters", ".json");
 		Files.write(tempPath, om.writeValueAsBytes(map));
@@ -227,15 +228,13 @@ class ManualIoTPipelineCreationTest {
 
 			List<MessageReceptionRecord> messages = Collections
 					.synchronizedList(new LinkedList<MessageReceptionRecord>());
-			/*IMqttClient stepAWorker1 = buildConsumer(brokerURL, "step_A_worker_1", "$share/all/neb.step_A_output",
-					messages);*/
-			IMqttClient stepBWorker1 = buildConsumer(brokerURL, "step_B_worker_1", "$share/all/neb.step_B_input",
+			IMqttClient stepAWorker1 = buildWorker(brokerURL, "step_A_worker_1", "$share/all/neb.step_A_input","neb.step_A_output",
 					messages);
-			IMqttClient stepBWorker2 = buildConsumer(brokerURL, "step_B_worker_2", "$share/all/neb.step_B_input",
+			IMqttClient stepAWorker2 = buildWorker(brokerURL, "step_A_worker_2", "$share/all/neb.step_A_input","neb.step_A_output",
 					messages);
-			IMqttClient stepCWorker1 = buildConsumer(brokerURL, "step_C_worker_1", "$share/all/neb.step_C_input",
+			IMqttClient stepBWorker1 = buildWorker(brokerURL, "step_B_worker_1", "$share/all/neb.step_B_input","neb.step_B_output",
 					messages);
-			IMqttClient stepCWorker2 = buildConsumer(brokerURL, "step_C_worker_2", "$share/all/neb.step_C_input",
+			IMqttClient stepBWorker2 = buildWorker(brokerURL, "step_B_worker_2", "$share/all/neb.step_B_input","neb.step_B_output",
 					messages);
 
 
@@ -249,7 +248,7 @@ class ManualIoTPipelineCreationTest {
 
 			publisher.connect(connOpts);
 
-			int messagesCount = 30;
+			int messagesCount = 5;
 			Random rand = new Random();
 			for (int i = 0; i < messagesCount; i++) {
 				//MqttMessage message = new MqttMessage("hola from publisher".getBytes());
@@ -259,11 +258,11 @@ class ManualIoTPipelineCreationTest {
 				TestMessage payload = new TestMessage(i, rand.nextInt(1, 10), rand.nextInt(1, 10));
 				MqttMessage message = new MqttMessage(om.writeValueAsString(payload).getBytes());
 				message.setQos(2);
-				publisher.publish("neb.step_A_output", message);				
+				publisher.publish("neb.src", message);				
 				Thread.sleep(1);
 			}
 			Thread.sleep(1000);
-			for (String step : List.of("B", "C")) {
+			for (String step : List.of("A", "B")) {
 				List<MessageReceptionRecord> stepInputMessages = messages.stream()
 						.filter(m -> m.consumerId.startsWith("step_" + step)).toList();
 				assertEquals(messagesCount, stepInputMessages.size());

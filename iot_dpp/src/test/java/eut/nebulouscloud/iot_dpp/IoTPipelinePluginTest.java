@@ -175,10 +175,10 @@ class IoTPipelinePluginTest {
 		String brokerURL = "localhost:" + brokerPort;
 		// localhost:1883"
 		Map<String, IoTPipelineStepConfiguration> map = new HashMap<String, IoTPipelineStepConfiguration>();
-		map.put("stepB", new IoTPipelineStepConfiguration("src",
+		map.put("stepA", new IoTPipelineStepConfiguration("src",
+				new GroupIDExtractionParameters(GroupIDExpressionSource.BODY_JSON, "fieldA")));
+		map.put("stepB", new IoTPipelineStepConfiguration("stepA",
 				new GroupIDExtractionParameters(GroupIDExpressionSource.BODY_JSON, "fieldB")));
-		map.put("stepC", new IoTPipelineStepConfiguration("stepB",
-				new GroupIDExtractionParameters(GroupIDExpressionSource.BODY_JSON, "fieldC")));
 		EmbeddedActiveMQ broker = null;
 		try {
 
@@ -190,13 +190,13 @@ class IoTPipelinePluginTest {
 			broker = createActiveMQBroker("test-server", map, brokerPort);
 			List<MessageReceptionRecord> messages = Collections
 					.synchronizedList(new LinkedList<MessageReceptionRecord>());
-			IMqttClient stepBWorker1 = buildWorker(brokerURL, "step_B_worker_1", "$share/all/iotdpp.stepB.input.src","iotdpp.stepB.output",
+			IMqttClient stepAWorker1 = buildWorker(brokerURL, "step_A_worker_1", "$share/all/iotdpp.stepA.input.src","iotdpp.stepA.output",
 					messages);
-			IMqttClient stepBWorker2 = buildWorker(brokerURL, "step_B_worker_2", "$share/all/iotdpp.stepB.input.src","iotdpp.stepB.output",
+			IMqttClient stepAWorker2 = buildWorker(brokerURL, "step_A_worker_2", "$share/all/iotdpp.stepA.input.src","iotdpp.stepA.output",
 					messages);
-			IMqttClient stepCWorker1 = buildWorker(brokerURL, "step_C_worker_1", "$share/all/iotdpp.stepC.input.stepB","iotdpp.stepC.output",
+			IMqttClient stepBWorker1 = buildWorker(brokerURL, "step_B_worker_1", "$share/all/iotdpp.stepB.input.stepA","iotdpp.stepB.output",
 					messages);
-			IMqttClient stepCWorker2 = buildWorker(brokerURL, "step_C_worker_2", "$share/all/iotdpp.stepC.input.stepB","iotdpp.stepC.output",
+			IMqttClient stepBWorker2 = buildWorker(brokerURL, "step_B_worker_2", "$share/all/iotdpp.stepB.input.stepA","iotdpp.stepB.output",
 					messages);
 
 			/**
@@ -214,20 +214,15 @@ class IoTPipelinePluginTest {
 			int messagesCount = 30;
 			Random rand = new Random();
 			for (int i = 0; i < messagesCount; i++) {
-				// MqttMessage message = new MqttMessage("hola from publisher".getBytes());
-				// message.setQos(2);
-				// publisherBrokerA.publish(testTopic, message);
-
 				TestMessage payload = new TestMessage(i, rand.nextInt(1, 10), rand.nextInt(1, 10));
 				MqttMessage message = new MqttMessage(om.writeValueAsString(payload).getBytes());
 				message.setQos(2);
 				publisher.publish("iotdpp.src.output", message);
-				//publisher.publish("iotdpp.stepA.input.src", message);
-				//
 				Thread.sleep(1);
 			}
+			
 			Thread.sleep(1000);
-			for (String step : List.of("B", "C")) {
+			for (String step : List.of("A", "B")) {
 				List<MessageReceptionRecord> stepInputMessages = messages.stream()
 						.filter(m -> m.consumerId.startsWith("step_" + step)).toList();
 				assertEquals(messagesCount, stepInputMessages.size());
