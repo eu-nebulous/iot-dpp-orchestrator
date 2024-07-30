@@ -1,6 +1,8 @@
 package eut.nebulouscloud.iot_dpp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -10,9 +12,11 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 
+import org.apache.activemq.artemis.api.core.Pair;
 import org.apache.activemq.artemis.core.config.ClusterConnectionConfiguration;
 import org.apache.activemq.artemis.core.config.Configuration;
 import org.apache.activemq.artemis.core.config.DivertConfiguration;
@@ -28,7 +32,9 @@ import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.MqttCallback;
 import org.eclipse.paho.client.mqttv3.MqttClient;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
+import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
+import org.eclipse.paho.client.mqttv3.MqttPersistenceException;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,9 +43,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import eut.nebulouscloud.iot_dpp.GroupIDExtractionParameters.GroupIDExpressionSource;
 import eut.nebulouscloud.iot_dpp.monitoring.QueuesMonitoringMessage;
+import eut.nebulouscloud.iot_dpp.monitoring.QueuesMonitoringPlugin;
+import eut.nebulouscloud.iot_dpp.monitoring.QueuesMonitoringPlugin.QueuesMonitoringPluginConsumer;
+import eut.nebulouscloud.iot_dpp.monitoring.events.MessageLifecycleEvent;
 import eut.nebulouscloud.iot_dpp.pipeline.IoTPipelineConfigurator;
 import eut.nebulouscloud.iot_dpp.pipeline.IoTPipelineStepConfiguration;
-
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 /**
  * Test the correct functionaltiy of QueuesMonitoringPlugin
  */
@@ -59,7 +71,7 @@ class IoTPipelinePluginTest {
 	 * @throws Exception
 	 */
 	private EmbeddedActiveMQ createActiveMQBroker(String nodeName, int port,
-			Map<String, IoTPipelineStepConfiguration> pipelineSteps, List<Integer> otherServers) throws Exception {
+			Map<String, IoTPipelineStepConfiguration> pipelineSteps, List<Integer> otherServers,List<List<QueuesMonitoringMessage>> queuesMonitoringMessage) throws Exception {
 		Configuration config = new ConfigurationImpl();
 		config.setName(nodeName);
 		String foldersRoot = "data/" + new Date().getTime() + "/data_" + port;
@@ -93,13 +105,20 @@ class IoTPipelinePluginTest {
 		configuratorPlugin.init(
 				Map.of(IoTPipelineConfigurator.IOT_DPP_PIPELINE_STEPS_ENV_VAR, om.writeValueAsString(pipelineSteps),
 						"local_activemq_url", "tcp://localhost:"+port,
-						"local_activemq_user","artemis","local_activemq_password","artemis"
-						
-						
-						
-						
-						));
+						"local_activemq_user","artemis","local_activemq_password","artemis"));
 		config.getBrokerPlugins().add(configuratorPlugin);
+		
+		QueuesMonitoringPlugin plugin = new QueuesMonitoringPlugin();
+		plugin.init(Map.of("topic_prefix",IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX,"local_activemq_url","tcp://localhost:"+port,"query_interval_seconds",""+QueuesMonitoringProcesQueryIntervalSeconds,"local_activemq_user","artemis","local_activemq_password","artemis"));
+		plugin.process.consumer = new QueuesMonitoringPluginConsumer() {
+
+			@Override
+			public void consume(List<QueuesMonitoringMessage> messages) {
+				queuesMonitoringMessage.add(messages);
+
+			}
+		};
+		config.getBrokerMessagePlugins().add(plugin);
 		
 		EmbeddedActiveMQ server = new EmbeddedActiveMQ();
 		server.setSecurityManager(new ActiveMQSecurityManager() {
@@ -121,26 +140,31 @@ class IoTPipelinePluginTest {
 	}
 
 	private EmbeddedActiveMQ createActiveMQBroker(String nodeName,
-			Map<String, IoTPipelineStepConfiguration> pipelineSteps, int port) throws Exception {
-		return createActiveMQBroker(nodeName, port, pipelineSteps, null);
+			Map<String, IoTPipelineStepConfiguration> pipelineSteps,int port, List<List<QueuesMonitoringMessage>> result) throws Exception {
+		return createActiveMQBroker(nodeName, port, pipelineSteps, null,result);
 	}
 
 	private IMqttClient buildWorker(String brokerURL, String clientId, String inputTopic, String outputTopic,
 			List<MessageReceptionRecord> messages) throws Exception {
 		IMqttClient consumer = new MqttClient("tcp://" + brokerURL, clientId);
+		
+		ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+		List<Pair<String, byte[]>> outputMessagesList = Collections
+				.synchronizedList(new LinkedList<Pair<String, byte[]>>());
+		
 		consumer.setCallback(new MqttCallback() {
 
 			@Override
 			public void messageArrived(String topic, MqttMessage message) throws Exception {
 				messages.add(new MessageReceptionRecord(consumer.getClientId(), topic,
 						om.readValue(new String(message.getPayload()), TestMessage.class)));
-				LOGGER.info("Worker "+consumer.getClientId()+" messageArrived");
-				consumer.publish(outputTopic, message.getPayload(), 2, false);
-
+				LOGGER.info("Worker "+consumer.getClientId()+" messageArrived "+message.getId());
+				outputMessagesList.add(new Pair(outputTopic, message.getPayload()));
 			}
 
 			@Override
 			public void deliveryComplete(IMqttDeliveryToken token) {
+				//LOGGER.info("Worker "+consumer.getClientId()+" deliveryComplete "+token);
 			}
 
 			@Override
@@ -152,10 +176,58 @@ class IoTPipelinePluginTest {
 		// opts.setUserName("artemis");
 		// opts.setPassword("artemis".toCharArray());
 		opts.setCleanSession(false);
-
 		consumer.connect(opts);
 		consumer.subscribe(inputTopic, 2);
+		
+
+	        
+	      new Thread( new  Runnable() {
+			
+			@Override
+			public void run() {
+				while(true)
+				{
+		    	  while(!outputMessagesList.isEmpty())
+					 {
+						 Pair<String,byte[]> m = outputMessagesList.remove(0);
+						 try {
+							consumer.publish(m.getA(), m.getB(), 2, false);
+						} catch (MqttPersistenceException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						} catch (MqttException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
+						 try {
+							Thread.sleep(100);
+						} catch (InterruptedException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
+					 }
+		    	  try {
+						Thread.sleep(100);
+					} catch (InterruptedException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+				}
+			}
+		}).start();
+
+		
+		
+		
+		
 		return consumer;
+	}
+	
+	
+	
+	private Optional<QueuesMonitoringMessage> getLastMessageFromTopic(List<List<QueuesMonitoringMessage>> queuesMonitoringMessages, String topic)
+	{
+		return queuesMonitoringMessages.get(queuesMonitoringMessages.size()-1).stream().filter(m->m.queue.equals(topic)).findFirst();
 	}
 
 	/**
@@ -181,27 +253,33 @@ class IoTPipelinePluginTest {
 				new GroupIDExtractionParameters(GroupIDExpressionSource.BODY_JSON, "fieldB")));
 		EmbeddedActiveMQ broker = null;
 		try {
-
-			
-			//[INFO ] 2024-07-22 13:23:44.496 [Thread-0] IoTPipelineConfigurator - callCreateDivert divertName: iotdpp.src.input, address: iotdpp.src.output 
-			//forwardingAddress: iotdpp.src.input.src exclusive: false filterString: null, transformerClassName: eut.nebulouscloud.iot_dpp.GroupIDAnnotationDivertTransfomer,
-			//transformerPropertiesAsJSON: {"NEB_IOT_DPP_GROUPID_EXTRACTION_CONFIG_MAP":{"iotdpp.src.input.src":{"source":"BODY_JSON","expression":"fieldA"}}}, routingType: STRIP
-
-			broker = createActiveMQBroker("test-server", map, brokerPort);
+			List<List<QueuesMonitoringMessage>> queuesMonitoringMessages = new LinkedList<List<QueuesMonitoringMessage>>();
+			broker = createActiveMQBroker("test-server", map, brokerPort,queuesMonitoringMessages);
 			List<MessageReceptionRecord> messages = Collections
 					.synchronizedList(new LinkedList<MessageReceptionRecord>());
-			IMqttClient stepAWorker1 = buildWorker(brokerURL, "step_A_worker_1", "$share/all/iotdpp.stepA.input.src","iotdpp.stepA.output",
+			LOGGER.info("Create workers");
+			IMqttClient stepAWorker1 = buildWorker(brokerURL, "step_A_worker_1", "$share/all/"+IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"stepA.input.src",IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"stepA.output",
 					messages);
-			IMqttClient stepAWorker2 = buildWorker(brokerURL, "step_A_worker_2", "$share/all/iotdpp.stepA.input.src","iotdpp.stepA.output",
+			IMqttClient stepAWorker2 = buildWorker(brokerURL, "step_A_worker_2", "$share/all/"+IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"stepA.input.src",IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"stepA.output",
 					messages);
-			IMqttClient stepBWorker1 = buildWorker(brokerURL, "step_B_worker_1", "$share/all/iotdpp.stepB.input.stepA","iotdpp.stepB.output",
+			IMqttClient stepBWorker1 = buildWorker(brokerURL, "step_B_worker_1","$share/all/"+IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"stepB.input.stepA",IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"stepB.output",
 					messages);
-			IMqttClient stepBWorker2 = buildWorker(brokerURL, "step_B_worker_2", "$share/all/iotdpp.stepB.input.stepA","iotdpp.stepB.output",
+			IMqttClient stepBWorker2 = buildWorker(brokerURL, "step_B_worker_2", "$share/all/"+IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"stepB.input.stepA",IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"stepB.output",
 					messages);
-
+			
+			LOGGER.info("Disconnect all workers");
+			/**
+			 * Disconnect all the workers. Subscription will be retained.
+			 */
+			stepAWorker1.disconnect();
+			stepAWorker2.disconnect();
+			stepBWorker1.disconnect();
+			stepBWorker2.disconnect();
+			Thread.sleep(5*1000);
 			/**
 			 * Publish a message to the topic
 			 */
+			LOGGER.info("Send messages to "+IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"src.output");
 			IMqttClient publisher = new MqttClient("tcp://" + brokerURL, "publisher");
 			MqttConnectOptions connOpts = new MqttConnectOptions();
 			connOpts.setUserName("artemis");
@@ -210,18 +288,76 @@ class IoTPipelinePluginTest {
 			publisher.connect(connOpts);
 			
 			
-
-			int messagesCount = 30;
+			/**
+			 * Send some messages to src topic
+			 */
+			int messagesCount = 60;
 			Random rand = new Random();
 			for (int i = 0; i < messagesCount; i++) {
 				TestMessage payload = new TestMessage(i, rand.nextInt(1, 10), rand.nextInt(1, 10));
 				MqttMessage message = new MqttMessage(om.writeValueAsString(payload).getBytes());
+				LOGGER.info("publish "+message.getId());
 				message.setQos(2);
-				publisher.publish("iotdpp.src.output", message);
+				publisher.publish(IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"src.output", message);
 				Thread.sleep(1);
 			}
 			
-			Thread.sleep(1000);
+			/**
+			 * Assert that the list of pending messages in step A is == messagesCount as the worker is stopped.
+			 * Assert that the list of pending messages in step B is == 0 as messages werent processed on previous step.
+			 */
+			LOGGER.info("Wait for metrics to be collected");
+			Thread.sleep(QueuesMonitoringProcesQueryIntervalSeconds*1000*3);			
+			assertFalse(queuesMonitoringMessages.isEmpty());
+			Optional<QueuesMonitoringMessage> monitoringMessageStepA = getLastMessageFromTopic(queuesMonitoringMessages, "all."+IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"stepA.input.src");
+			assertTrue(monitoringMessageStepA.isPresent());
+			assertEquals(messagesCount,monitoringMessageStepA.get().messageCount);
+			
+			Optional<QueuesMonitoringMessage> monitoringMessageStepB = getLastMessageFromTopic(queuesMonitoringMessages, "all."+IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"stepB.input.stepA");
+			assertTrue(monitoringMessageStepB.isPresent());
+			assertEquals(0,monitoringMessageStepB.get().messageCount);
+			
+			/**
+			 * Start woker A. Allow some time to process messages
+			 */
+			LOGGER.info("Reconnect step A workers");
+			stepAWorker1.reconnect();
+			stepAWorker2.reconnect();			
+			LOGGER.info("Wait for metrics to be collected");
+			Thread.sleep(QueuesMonitoringProcesQueryIntervalSeconds*1000*3);
+			
+			/**
+			 * Assert that the list of pending messages in step A is == 0 as thy were all processed.
+			 * Assert that the list of pending messages in step B is == messagesCount as step B is not working.
+			 */
+			monitoringMessageStepA = getLastMessageFromTopic(queuesMonitoringMessages, "all."+IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"stepA.input.src");
+			assertTrue(monitoringMessageStepA.isPresent());
+			assertEquals(0,monitoringMessageStepA.get().messageCount);
+			
+			monitoringMessageStepB = getLastMessageFromTopic(queuesMonitoringMessages, "all."+IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"stepB.input.stepA");
+			assertTrue(monitoringMessageStepB.isPresent());
+			assertEquals(messagesCount,monitoringMessageStepB.get().messageCount);
+			
+			/**
+			 * Start woker B. Allow some time to process messages
+			 */
+			LOGGER.info("Reconnect step B workers");
+			stepBWorker1.reconnect();
+			stepBWorker2.reconnect();
+			LOGGER.info("Wait for metrics to be collected");
+			Thread.sleep(QueuesMonitoringProcesQueryIntervalSeconds*1000*3);
+			
+			/**
+			 * Assert that the list of pending messages in step B is == 0 as thy were all processed.
+			 */
+			
+			monitoringMessageStepB = getLastMessageFromTopic(queuesMonitoringMessages, "all."+IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"stepB.input.stepA");
+			assertTrue(monitoringMessageStepB.isPresent());
+			assertEquals(0,monitoringMessageStepB.get().messageCount);
+			
+			/**
+			 * Assert that, for each step A and B, messages for different groupings are processed by different workers.
+			 */
 			for (String step : List.of("A", "B")) {
 				List<MessageReceptionRecord> stepInputMessages = messages.stream()
 						.filter(m -> m.consumerId.startsWith("step_" + step)).toList();
@@ -230,6 +366,8 @@ class IoTPipelinePluginTest {
 				List<Integer> fieldWithGroupingKeyValues = stepInputMessages.stream().map(m -> m.payload.getField(step))
 						.distinct().toList();
 				for (Integer groupingKeyValue : fieldWithGroupingKeyValues) {
+					LOGGER.info("For step "+step+" messages for groping key "+groupingKeyValue+" where processed by steps: "+stepInputMessages.stream().filter(m -> m.payload.getField(step) == groupingKeyValue)
+							.map(m -> m.consumerId).distinct().toList());
 					assertEquals(1, stepInputMessages.stream().filter(m -> m.payload.getField(step) == groupingKeyValue)
 							.map(m -> m.consumerId).distinct().count());
 				}

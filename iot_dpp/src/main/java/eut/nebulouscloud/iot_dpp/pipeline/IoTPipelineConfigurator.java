@@ -48,7 +48,7 @@ import eut.nebulouscloud.iot_dpp.monitoring.QueuesMonitoringPlugin;
 public class IoTPipelineConfigurator implements ActiveMQServerBasePlugin {
 
 	private final static String IOT_PIPELINE_DIVERT_PREFIX = "iotdpp.";
-	private final static String IOT_DPP_TOPICS_PREFIX = "iotdpp.";
+	public final static String IOT_DPP_TOPICS_PREFIX = "iotdpp.";
 
 	Logger LOGGER = LoggerFactory.getLogger(IoTPipelineConfigurator.class);
 	QueueConnection connection = null;
