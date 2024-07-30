@@ -6,13 +6,13 @@ import org.apache.commons.lang3.NotImplementedException;
 
 public class TestMessage {
 		public int id;
+		public int fieldA;
 		public int fieldB;
-		public int fieldC;
-		public TestMessage(int id, int fieldB, int fieldC) {
+		public TestMessage(int id, int fieldA, int fieldB) {
 			super();
 			this.id = id;
+			this.fieldA = fieldA;
 			this.fieldB = fieldB;
-			this.fieldC = fieldC;
 		}
 		public TestMessage() {
 			super();
@@ -20,9 +20,9 @@ public class TestMessage {
 		
 		public int getField(String fieldName)
 		{
-			if(fieldName.equals("B")) return fieldB;
-			if(fieldName.equals("C"))return fieldC;
-			throw new InvalidParameterException("Invalid field name "+fieldName+" must be either B or C");
+			if(fieldName.equals("A")) return fieldA;
+			if(fieldName.equals("B"))return fieldB;
+			throw new InvalidParameterException("Invalid field name "+fieldName+" must be either A or B");
 		}
 
 		

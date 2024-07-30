@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerMessagePlugin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,16 +33,19 @@ public class QueuesMonitoringPlugin implements ActiveMQServerMessagePlugin {
 				.orElseThrow(() -> new IllegalStateException("topic_prefix parameter is not defined"));
 		int QUERY_INTERVAL_MS = Integer.parseInt(properties.getOrDefault("query_interval_seconds", "3")) * 1000;
 		String activemqURL = properties.getOrDefault("local_activemq_url", "tcp://localhost:61616");
-		String activemqUser = properties.getOrDefault("local_activemq_user", "artemis");
-		String activemqPassword = properties.getOrDefault("local_activemq_password", "artemis");
-
+		
+		String activemqUser =  Optional.ofNullable(properties.getOrDefault("local_activemq_user", null))
+				.orElseThrow(() -> new IllegalStateException("local_activemq_user parameter is not defined"));
+		String activemqPassword = Optional.ofNullable(properties.getOrDefault("local_activemq_user", null))
+				.orElseThrow(() -> new IllegalStateException("local_activemq_password parameter is not defined"));
+		
 		process = new QueuesMonitoringProcess(topicPrefix, QUERY_INTERVAL_MS, activemqURL, activemqUser,
 				activemqPassword, null);
 		new Thread(process).start();
 
 	}
 
-	
+
 
 	public interface QueuesMonitoringPluginConsumer {
 		void consume(List<QueuesMonitoringMessage> messages);

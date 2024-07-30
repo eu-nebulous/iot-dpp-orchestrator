@@ -93,7 +93,7 @@ class QueuesMonitoringPluginTest {
 			}
 		}
 		QueuesMonitoringPlugin plugin = new QueuesMonitoringPlugin();
-		plugin.init(Map.of("topic_prefix",".neb","local_activemq_url","tcp://localhost:"+port,"query_interval_seconds",""+QueuesMonitoringProcesQueryIntervalSeconds));
+		plugin.init(Map.of("topic_prefix",".neb","local_activemq_url","tcp://localhost:"+port,"query_interval_seconds",""+QueuesMonitoringProcesQueryIntervalSeconds,"local_activemq_user","artemis","local_activemq_password","artemis"));
 		plugin.process.consumer = new QueuesMonitoringPluginConsumer() {
 
 			@Override
@@ -209,7 +209,7 @@ class QueuesMonitoringPluginTest {
 			 * Reconnect the consumer. Messages shall be consumed
 			 */
 			consumer.connect(opts);
-			Thread.sleep(QueuesMonitoringProcesQueryIntervalSeconds*100*2);
+			Thread.sleep(QueuesMonitoringProcesQueryIntervalSeconds*1000*2);
 			assertEquals(0,result.get(result.size()-1).get(0).messageCount);
 
 		} finally {

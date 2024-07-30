@@ -46,21 +46,24 @@ public class MessageGroupIDAnnotationPlugin implements ActiveMQServerMessagePlug
 	MessageGroupIDAnotator annotator;
 
 	public MessageGroupIDAnnotationPlugin() {
-		annotator = new MessageGroupIDAnotator();
+		
+	}
+	
+	@Override
+	public void init(Map<String, String> properties) {
+		annotator = MessageGroupIDAnotator.fromProperties(properties);
+	
 	}
 
-	public MessageGroupIDAnnotationPlugin(String path) {
-		annotator = new MessageGroupIDAnotator(path);
-	}
-
-	public MessageGroupIDAnnotationPlugin(Map<String, GroupIDExtractionParameters> groupIdExtractionParameterPerTopic) {
-		annotator = new MessageGroupIDAnotator(groupIdExtractionParameterPerTopic);
-	}
 
 	@Override
 	public void beforeSend(ServerSession session, Transaction tx, Message message, boolean direct,
 			boolean noAutoCreateQueue) {
-		annotator.setGroupIDAnnotation(message, false);
+		if(annotator!=null)
+		{
+			annotator.setGroupIDAnnotation(message, false);	
+		}
+		
 	}
 
 }

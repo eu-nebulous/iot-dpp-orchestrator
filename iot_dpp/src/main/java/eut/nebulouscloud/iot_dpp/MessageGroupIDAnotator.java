@@ -23,7 +23,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
 
+import com.fasterxml.jackson.core.exc.StreamReadException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DatabindException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.JsonPath;
 
@@ -45,8 +47,8 @@ public class MessageGroupIDAnotator {
 	static Logger LOGGER = LoggerFactory.getLogger(MessageGroupIDAnotator.class);
 	static ObjectMapper om = new ObjectMapper();
 	public static SimpleString MESSAGE_GROUP_ANNOTATION = new SimpleString("JMSXGroupID");
-
-	public static String GROUP_ID_EXTRACTION_CONFIG_PATH_ENV_VAR = "NEB_IOT_DPP_GROUPID_EXTRACTION_CONFIG_PATH";
+	public static final String GROUP_ID_EXTRACTION_CONFIG_PATH_ENV_VAR = "NEB_IOT_DPP_GROUPID_EXTRACTION_CONFIG_PATH";
+	public static final String GROUP_ID_EXTRACTION_CONFIG_MAP_ENV_VAR = "NEB_IOT_DPP_GROUPID_EXTRACTION_CONFIG_MAP";
 
 	/**
 	 * Dictionary with groupId extraction parameters. Each key in the dictionary
@@ -55,39 +57,87 @@ public class MessageGroupIDAnotator {
 	 */
 	Map<String, GroupIDExtractionParameters> groupIdExtractionParameterPerAddress;
 
-	public void readGroupIDExtractionParametersFile(String path) {
+	private static Map<String, GroupIDExtractionParameters> readGroupIDExtractionParametersFile(String path) {
+
 		if (path == null) {
-			LOGGER.error(String.format(
-					"'%s' environment variable with a JSON object containing the grouping extraction parameters was not provided.",
-					GROUP_ID_EXTRACTION_CONFIG_PATH_ENV_VAR));
-			groupIdExtractionParameterPerAddress = new HashMap<String, GroupIDExtractionParameters>();
-			return;
+			LOGGER.error("readGroupIDExtractionParametersFile. Path is null");
+			return  new HashMap<String, GroupIDExtractionParameters>();
 		}
 		try {
 			byte[] fileBytes = Files.readAllBytes(Path.of(path));
+			return parseGroupIDExtractionParametersMap(new String(fileBytes));			
+			
+		} catch (Exception ex) {
+			LOGGER.error(String.format(
+					"Problem reading grouping extraction parameters from path '%s'", path), ex);
+			return new HashMap<String, GroupIDExtractionParameters>();
+		}
+
+	}
+	
+	private static Map<String, GroupIDExtractionParameters> parseGroupIDExtractionParametersMap(String map) {
+
+		try {
 
 			TypeReference<Map<String, GroupIDExtractionParameters>> typeReference = new TypeReference<Map<String, GroupIDExtractionParameters>>() {
 			};
 
-			groupIdExtractionParameterPerAddress = om.readValue(fileBytes, typeReference);
+			return om.readValue(map.getBytes(), typeReference);
 
 		} catch (Exception ex) {
 			LOGGER.error(String.format(
-					"Problem reading grouping extraction parameters from path '%s' provided by env var '%s'", path,
-					GROUP_ID_EXTRACTION_CONFIG_PATH_ENV_VAR), ex);
-			groupIdExtractionParameterPerAddress = new HashMap<String, GroupIDExtractionParameters>();
+					"Problem reading grouping extraction parameters from JSON '%s'", map
+				), ex);
+			return new HashMap<String, GroupIDExtractionParameters>();
 		}
 
-	}
+	} 
+	
+	
 
 	public MessageGroupIDAnotator() {
-		readGroupIDExtractionParametersFile(System.getenv(GROUP_ID_EXTRACTION_CONFIG_PATH_ENV_VAR));
+		
 	}
+	
+	
 
-	public MessageGroupIDAnotator(String path) {
-		readGroupIDExtractionParametersFile(path);
+	public static MessageGroupIDAnotator fromConfigFilePath(String path) {
+		MessageGroupIDAnotator a = new MessageGroupIDAnotator();
+		a.groupIdExtractionParameterPerAddress =  MessageGroupIDAnotator.readGroupIDExtractionParametersFile(path);
+		return a;
 	}
-
+	
+	public static MessageGroupIDAnotator fromJSON(String json) {
+		MessageGroupIDAnotator a = new MessageGroupIDAnotator();
+		a.groupIdExtractionParameterPerAddress =  MessageGroupIDAnotator.parseGroupIDExtractionParametersMap(json);		
+		return a;
+	}
+	
+	
+	public static  MessageGroupIDAnotator fromProperties(Map<String, String> properties)
+	{
+		
+		
+		if(properties.containsKey(GROUP_ID_EXTRACTION_CONFIG_PATH_ENV_VAR) && !properties.get(GROUP_ID_EXTRACTION_CONFIG_PATH_ENV_VAR).isBlank())
+		{
+			LOGGER.info("Init from config file path: "+properties.get(GROUP_ID_EXTRACTION_CONFIG_PATH_ENV_VAR));
+			return MessageGroupIDAnotator.fromConfigFilePath(properties.get(GROUP_ID_EXTRACTION_CONFIG_PATH_ENV_VAR));
+		}else
+		{
+			if(properties.containsKey(GROUP_ID_EXTRACTION_CONFIG_MAP_ENV_VAR) && !properties.get(GROUP_ID_EXTRACTION_CONFIG_MAP_ENV_VAR).isBlank()) {
+			
+				LOGGER.info("Init from config map: "+properties.get(GROUP_ID_EXTRACTION_CONFIG_MAP_ENV_VAR));
+				return MessageGroupIDAnotator.fromJSON(properties.get(GROUP_ID_EXTRACTION_CONFIG_MAP_ENV_VAR));
+			}
+			else
+			{
+				LOGGER.error(String.format("Can't init GroupIDAnnotationDivertTransfomer. \"%s\" nor \"%s\"  where provided",GROUP_ID_EXTRACTION_CONFIG_PATH_ENV_VAR,GROUP_ID_EXTRACTION_CONFIG_MAP_ENV_VAR));
+				return new MessageGroupIDAnotator();
+				
+			}
+		}
+	}
+	
 	public MessageGroupIDAnotator(Map<String, GroupIDExtractionParameters> groupIdExtractionParameterPerTopic) {
 		this.groupIdExtractionParameterPerAddress = groupIdExtractionParameterPerTopic;
 	}
@@ -158,7 +208,7 @@ public class MessageGroupIDAnotator {
 			LOGGER.error("Can't extract group ID from XML body on LargeServerMessages");
 			return null;
 		}
-		String body = message.getStringBody();
+		String body = getBody(message);
 		if (body == null) {
 			LOGGER.error(
 					String.format("Can't extract group id from XML body on message %s since body is null", message));
@@ -177,6 +227,25 @@ public class MessageGroupIDAnotator {
 		}
 
 	}
+	
+	private static String getBody(Message message)
+	{
+		String body = message.getStringBody();
+		if(body==null)
+		{
+			try {
+				ActiveMQBuffer buf = message.toCore().getBodyBuffer();
+				
+				byte[] data = new byte[buf.writerIndex() - buf.readerIndex()];
+				buf.readFully(data);
+				body = new String(data);
+			} catch (Exception ex) {
+				LOGGER.error("cant get body",ex);
+				
+			}
+		}
+		return body;
+	}
 
 	/**
 	 * https://restfulapi.net/json-jsonpath/
@@ -190,20 +259,9 @@ public class MessageGroupIDAnotator {
 			LOGGER.error("Can't extract group id from JSON body on LargeServerMessages");
 			return null;
 		}
+		
+		String body = getBody(message);
 
-		String body = message.getStringBody();
-		/*try {
-			ActiveMQBuffer buf = message.toCore().getBodyBuffer();
-			
-			byte[] data = new byte[buf.writerIndex() - buf.readerIndex()];
-			buf.readFully(data);
-			body = new String(data);
-		} catch (Exception ex) {
-			LOGGER.error(
-					String.format("Can't extract group id from JSON body on message %s since body is null", message),
-					ex);
-			return null;
-		}*/
 
 		if (body == null) {
 			LOGGER.error(

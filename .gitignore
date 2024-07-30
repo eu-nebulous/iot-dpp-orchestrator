@@ -7,7 +7,12 @@
 /iot_dpp/gradle/wrapper/gradle-wrapper.jar
 /iot_dpp/gradle/wrapper/gradle-wrapper.properties
 /iot_dpp/gradlew
+/iot_dpp/bin
+/iot_dpp/build
+/iot_dpp/data
+/iot_dpp/logs
 __pycache__/
 .nox/
 /iot_dpp/maven-repo
+/iot_dpp/.settings/org.eclipse.m2e.core.prefs
 /iot_dpp/.settings/org.eclipse.jdt.apt.core.prefs

@@ -43,7 +43,8 @@ import eut.nebulouscloud.iot_dpp.GroupIDExtractionParameters.GroupIDExpressionSo
 
 class MessageGroupIdAnnotationPluginTest {
 	static Logger LOGGER = LoggerFactory.getLogger(MessageGroupIdAnnotationPluginTest.class);
-
+	static MessageGroupIDAnnotationPlugin groupIdExtractionPlugin = new MessageGroupIDAnnotationPlugin();
+	ObjectMapper om = new ObjectMapper();
 	/**
 	 * Creates a local ActiveMQ server listening at localhost:61616. The server
 	 * accepts requests from any user. Configures the MessageGroupIDAnnotationPlugin
@@ -55,8 +56,7 @@ class MessageGroupIdAnnotationPluginTest {
 	 * @return the created EmbeddedActiveMQ instance.
 	 * @throws Exception
 	 */
-	static private EmbeddedActiveMQ createLocalServer(int port,
-			Map<String, GroupIDExtractionParameters> groupIdExtractionParameterPerTopic) throws Exception {
+	static private EmbeddedActiveMQ createLocalServer(int port) throws Exception {
 		Configuration config = new ConfigurationImpl();
 
 		String foldersRoot = "data/" + new Date().getTime() + "/data_" + port;
@@ -68,7 +68,8 @@ class MessageGroupIdAnnotationPluginTest {
 		config.setPagingDirectory(foldersRoot + "/paging");
 		config.addConnectorConfiguration("serverAt" + port + "Connector", "tcp://localhost:" + port);
 		config.addAcceptorConfiguration("netty", "tcp://localhost:" + port);
-		config.getBrokerMessagePlugins().add(new MessageGroupIDAnnotationPlugin(groupIdExtractionParameterPerTopic));
+							
+		config.getBrokerMessagePlugins().add(groupIdExtractionPlugin);
 		EmbeddedActiveMQ server = new EmbeddedActiveMQ();
 		server.setSecurityManager(new ActiveMQSecurityManager() {
 			@Override
@@ -88,14 +89,14 @@ class MessageGroupIdAnnotationPluginTest {
 	}
 
 	static EmbeddedActiveMQ server = null;
-	static Map<String, GroupIDExtractionParameters> groupIdExtractionParameterPerAddress = new HashMap<String, GroupIDExtractionParameters>();
+	
 	static Session session;
 	static Connection connection;
 
 	@BeforeAll
 	static void createServer() throws Exception {
 		LOGGER.info("createServer");
-		server = createLocalServer(6161, groupIdExtractionParameterPerAddress);
+		server = createLocalServer(6161);
 		ActiveMQJMSConnectionFactory connectionFactory = new ActiveMQJMSConnectionFactory("tcp://localhost:6161",
 				"artemis", "artemis");
 		connection = connectionFactory.createConnection();
@@ -114,7 +115,7 @@ class MessageGroupIdAnnotationPluginTest {
 	@BeforeEach
 	void before() throws JMSException {
 		session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
-		groupIdExtractionParameterPerAddress.clear();
+		groupIdExtractionPlugin.init(Map.of());
 	}
 
 	@AfterEach
@@ -134,20 +135,20 @@ class MessageGroupIdAnnotationPluginTest {
 	 */
 	@Test
 	void createPluginTest() throws IOException {		
-		MessageGroupIDAnnotationPlugin plugin = new MessageGroupIDAnnotationPlugin();
-		assertTrue(plugin.annotator.groupIdExtractionParameterPerAddress.isEmpty());
 		
-		plugin = new MessageGroupIDAnnotationPlugin("ssadsadsadsa");
-		assertTrue(plugin.annotator.groupIdExtractionParameterPerAddress.isEmpty());
+		MessageGroupIDAnnotationPlugin plugin = new MessageGroupIDAnnotationPlugin();
+		plugin.init(Map.of(MessageGroupIDAnotator.GROUP_ID_EXTRACTION_CONFIG_PATH_ENV_VAR,"ssadsadsadsa"));
+		assertTrue(plugin.annotator.groupIdExtractionParameterPerAddress.isEmpty()); 
+		
 		
 		Map<String, GroupIDExtractionParameters> map = new HashMap<String, GroupIDExtractionParameters>();
 		map.put("A", new GroupIDExtractionParameters(GroupIDExpressionSource.BODY_JSON, "address.city"));
 		map.put("B", new GroupIDExtractionParameters(GroupIDExpressionSource.BODY_XML, "address.city"));
 		Path tempPath = Files.createTempFile("GroupIDExtractionParameters", ".json");
-		ObjectMapper om = new ObjectMapper();
-		Files.write(tempPath, om.writeValueAsBytes(map));
 		
-		plugin = new MessageGroupIDAnnotationPlugin(tempPath.toString());		
+		Files.write(tempPath, om.writeValueAsBytes(map));
+		plugin = new MessageGroupIDAnnotationPlugin();
+		plugin.init(Map.of(MessageGroupIDAnotator.GROUP_ID_EXTRACTION_CONFIG_PATH_ENV_VAR,tempPath.toString()));
 		assertTrue(!plugin.annotator.groupIdExtractionParameterPerAddress.isEmpty());
 		assertEquals(2, plugin.annotator.groupIdExtractionParameterPerAddress.keySet().size());
 		assertTrue(plugin.annotator.groupIdExtractionParameterPerAddress.containsKey("A"));
@@ -167,8 +168,11 @@ class MessageGroupIdAnnotationPluginTest {
 	void JSONTest1() throws Exception {
 
 		String address = "testaddress";
-		groupIdExtractionParameterPerAddress.put(address,
-				new GroupIDExtractionParameters(GroupIDExpressionSource.BODY_JSON, "address.city"));
+		
+		Map<String, GroupIDExtractionParameters> map = new HashMap<String, GroupIDExtractionParameters>();
+		map.put(address,new GroupIDExtractionParameters(GroupIDExpressionSource.BODY_JSON, "address.city"));
+		groupIdExtractionPlugin.init(Map.of(MessageGroupIDAnotator.GROUP_ID_EXTRACTION_CONFIG_MAP_ENV_VAR,om.writeValueAsString(map)));
+		
 		Destination destination = session.createQueue(address);
 		MessageProducer producer = session.createProducer(destination);
 		MessageConsumer consumer = session.createConsumer(destination);
@@ -191,8 +195,11 @@ class MessageGroupIdAnnotationPluginTest {
 	void JSONTest2() throws Exception {
 
 		String address = "testaddress";
-		groupIdExtractionParameterPerAddress.put(address,
+		Map<String, GroupIDExtractionParameters> groupIDExtractionParameters = new HashMap<String, GroupIDExtractionParameters>();
+		groupIDExtractionParameters.put(address,
 				new GroupIDExtractionParameters(GroupIDExpressionSource.BODY_JSON, "address.city"));
+		groupIdExtractionPlugin.init(Map.of(MessageGroupIDAnotator.GROUP_ID_EXTRACTION_CONFIG_MAP_ENV_VAR,om.writeValueAsString(groupIDExtractionParameters)));
+	
 		Destination destination = session.createQueue(address);
 		MessageProducer producer = session.createProducer(destination);
 		MessageConsumer consumer = session.createConsumer(destination);
@@ -215,8 +222,12 @@ class MessageGroupIdAnnotationPluginTest {
 	void JSONTest3() throws Exception {
 
 		String address = "testaddress";
-		groupIdExtractionParameterPerAddress.put(address,
+		Map<String, GroupIDExtractionParameters> groupIDExtractionParameters = new HashMap<String, GroupIDExtractionParameters>();
+		groupIDExtractionParameters.put(address,
 				new GroupIDExtractionParameters(GroupIDExpressionSource.BODY_JSON, "address"));
+		groupIdExtractionPlugin.init(Map.of(MessageGroupIDAnotator.GROUP_ID_EXTRACTION_CONFIG_MAP_ENV_VAR,om.writeValueAsString(groupIDExtractionParameters)));
+		
+
 		Destination destination = session.createQueue(address);
 		MessageProducer producer = session.createProducer(destination);
 		MessageConsumer consumer = session.createConsumer(destination);
@@ -239,8 +250,11 @@ class MessageGroupIdAnnotationPluginTest {
 	void XMLTest1() throws Exception {
 
 		String address = "testaddress";
-		groupIdExtractionParameterPerAddress.put(address,
+		Map<String, GroupIDExtractionParameters> groupIDExtractionParameters = new HashMap<String, GroupIDExtractionParameters>();
+		groupIDExtractionParameters.put(address,
 				new GroupIDExtractionParameters(GroupIDExpressionSource.BODY_XML, "/root/address/city"));
+		groupIdExtractionPlugin.init(Map.of(MessageGroupIDAnotator.GROUP_ID_EXTRACTION_CONFIG_MAP_ENV_VAR,om.writeValueAsString(groupIDExtractionParameters)));
+		
 		Destination destination = session.createQueue(address);
 		MessageProducer producer = session.createProducer(destination);
 		MessageConsumer consumer = session.createConsumer(destination);
@@ -266,9 +280,13 @@ class MessageGroupIdAnnotationPluginTest {
 	void XMLTest2() throws Exception {
 
 		String address = "testaddress";
-		groupIdExtractionParameterPerAddress.put(address,
+		Map<String, GroupIDExtractionParameters> groupIDExtractionParameters = new HashMap<String, GroupIDExtractionParameters>();
+		groupIDExtractionParameters.put(address,
 				new GroupIDExtractionParameters(GroupIDExpressionSource.BODY_XML, "/root/address"));
 		Destination destination = session.createQueue(address);
+		groupIdExtractionPlugin.init(Map.of(MessageGroupIDAnotator.GROUP_ID_EXTRACTION_CONFIG_MAP_ENV_VAR,om.writeValueAsString(groupIDExtractionParameters)));
+		
+		
 		MessageProducer producer = session.createProducer(destination);
 		MessageConsumer consumer = session.createConsumer(destination);
 		String text = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n" + "<root>\r\n" + "   <address>\r\n"
