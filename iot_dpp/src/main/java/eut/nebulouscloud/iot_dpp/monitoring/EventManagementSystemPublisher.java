@@ -25,12 +25,13 @@ public class EventManagementSystemPublisher {
 	private final String emsUser;
 	private final String emsPassword;
 	private final String emsURL;
-
+	private final String reportingTopicPrefix;
 	ClientSession session;
 	Map<String, ClientProducer> producers;
 
-	public EventManagementSystemPublisher(String emsURL, String emsUser, String emsPassword) {
+	public EventManagementSystemPublisher(String emsURL, String emsUser, String emsPassword, String reportingTopicPrefix) {
 		this.emsUser = emsUser;
+		this.reportingTopicPrefix = reportingTopicPrefix;
 		this.emsURL = emsURL;
 		this.emsPassword = emsPassword;
 		connect();
@@ -62,7 +63,7 @@ public class EventManagementSystemPublisher {
 		if (session == null || session.isClosed()) {
 			connect();
 		}
-		String topic = "/topic/" + topicName;
+		String topic = reportingTopicPrefix+topicName;
 		try {
 			String payload = om.writeValueAsString(Map.of("metricValue", value, "level", 1, "timestamp", timestamp));
 			if (!producers.containsKey(topic)) {

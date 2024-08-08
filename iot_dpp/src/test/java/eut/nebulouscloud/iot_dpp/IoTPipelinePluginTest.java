@@ -109,7 +109,7 @@ class IoTPipelinePluginTest {
 		config.getBrokerPlugins().add(configuratorPlugin);
 		
 		QueuesMonitoringPlugin plugin = new QueuesMonitoringPlugin();
-		plugin.init(Map.of("topic_prefix",IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX,"local_activemq_url","tcp://localhost:"+port,"query_interval_seconds",""+QueuesMonitoringProcesQueryIntervalSeconds,"local_activemq_user","artemis","local_activemq_password","artemis"));
+		plugin.init(Map.of("monitored_topic_prefix","all."+IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX,"local_activemq_url","tcp://localhost:"+port,"query_interval_seconds",""+QueuesMonitoringProcesQueryIntervalSeconds,"local_activemq_user","artemis","local_activemq_password","artemis"));
 		plugin.process.consumer = new QueuesMonitoringPluginConsumer() {
 
 			@Override
@@ -257,24 +257,7 @@ class IoTPipelinePluginTest {
 			broker = createActiveMQBroker("test-server", map, brokerPort,queuesMonitoringMessages);
 			List<MessageReceptionRecord> messages = Collections
 					.synchronizedList(new LinkedList<MessageReceptionRecord>());
-			LOGGER.info("Create workers");
-			IMqttClient stepAWorker1 = buildWorker(brokerURL, "step_A_worker_1", "$share/all/"+IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"stepA.input.src",IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"stepA.output",
-					messages);
-			IMqttClient stepAWorker2 = buildWorker(brokerURL, "step_A_worker_2", "$share/all/"+IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"stepA.input.src",IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"stepA.output",
-					messages);
-			IMqttClient stepBWorker1 = buildWorker(brokerURL, "step_B_worker_1","$share/all/"+IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"stepB.input.stepA",IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"stepB.output",
-					messages);
-			IMqttClient stepBWorker2 = buildWorker(brokerURL, "step_B_worker_2", "$share/all/"+IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"stepB.input.stepA",IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"stepB.output",
-					messages);
 			
-			LOGGER.info("Disconnect all workers");
-			/**
-			 * Disconnect all the workers. Subscription will be retained.
-			 */
-			stepAWorker1.disconnect();
-			stepAWorker2.disconnect();
-			stepBWorker1.disconnect();
-			stepBWorker2.disconnect();
 			Thread.sleep(5*1000);
 			/**
 			 * Publish a message to the topic
@@ -320,9 +303,11 @@ class IoTPipelinePluginTest {
 			/**
 			 * Start woker A. Allow some time to process messages
 			 */
-			LOGGER.info("Reconnect step A workers");
-			stepAWorker1.reconnect();
-			stepAWorker2.reconnect();			
+			LOGGER.info("Start woker A");
+			IMqttClient stepAWorker1 = buildWorker(brokerURL, "step_A_worker_1", "$share/all/"+IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"stepA.input.src",IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"stepA.output",
+					messages);
+			IMqttClient stepAWorker2 = buildWorker(brokerURL, "step_A_worker_2", "$share/all/"+IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"stepA.input.src",IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"stepA.output",
+					messages);
 			LOGGER.info("Wait for metrics to be collected");
 			Thread.sleep(QueuesMonitoringProcesQueryIntervalSeconds*1000*3);
 			
@@ -341,9 +326,11 @@ class IoTPipelinePluginTest {
 			/**
 			 * Start woker B. Allow some time to process messages
 			 */
-			LOGGER.info("Reconnect step B workers");
-			stepBWorker1.reconnect();
-			stepBWorker2.reconnect();
+			LOGGER.info("Start woker B");
+			IMqttClient stepBWorker1 = buildWorker(brokerURL, "step_B_worker_1","$share/all/"+IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"stepB.input.stepA",IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"stepB.output",
+					messages);
+			IMqttClient stepBWorker2 = buildWorker(brokerURL, "step_B_worker_2", "$share/all/"+IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"stepB.input.stepA",IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"stepB.output",
+					messages);
 			LOGGER.info("Wait for metrics to be collected");
 			Thread.sleep(QueuesMonitoringProcesQueryIntervalSeconds*1000*3);
 			

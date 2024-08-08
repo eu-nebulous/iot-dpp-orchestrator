@@ -1,11 +1,11 @@
 package eut.nebulouscloud.iot_dpp.pipeline;
 
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import javax.jms.Message;
 import javax.jms.Queue;
@@ -15,19 +15,12 @@ import javax.jms.QueueSession;
 import javax.jms.Session;
 import javax.naming.InitialContext;
 
-import org.apache.activemq.artemis.api.config.ActiveMQDefaultConfiguration;
-import org.apache.activemq.artemis.api.core.management.ActiveMQServerControl;
 import org.apache.activemq.artemis.api.core.management.ResourceNames;
 import org.apache.activemq.artemis.api.jms.management.JMSManagementHelper;
-import org.apache.activemq.artemis.core.config.DivertConfiguration;
-import org.apache.activemq.artemis.core.config.TransformerConfiguration;
-import org.apache.activemq.artemis.core.management.impl.ActiveMQServerControlImpl;
 import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.apache.activemq.artemis.core.server.ComponentConfigurationRoutingType;
-import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerBasePlugin;
-import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerMessagePlugin;
+import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerPlugin;
 import org.apache.activemq.artemis.jms.client.ActiveMQConnectionFactory;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,16 +29,13 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import eut.nebulouscloud.iot_dpp.GroupIDAnnotationDivertTransfomer;
-import eut.nebulouscloud.iot_dpp.GroupIDExtractionParameters;
-import eut.nebulouscloud.iot_dpp.MessageGroupIDAnnotationPlugin;
 import eut.nebulouscloud.iot_dpp.MessageGroupIDAnotator;
-import eut.nebulouscloud.iot_dpp.monitoring.QueuesMonitoringPlugin;
 
 /**
  * This class is responsible for parsing the IoT pipeline definition JSON and
  * configure the local Artemis message broker to enact said pipeline
  */
-public class IoTPipelineConfigurator implements ActiveMQServerBasePlugin {
+public class IoTPipelineConfigurator implements ActiveMQServerPlugin {
 
 	private final static String IOT_PIPELINE_DIVERT_PREFIX = "iotdpp.";
 	public final static String IOT_DPP_TOPICS_PREFIX = "iotdpp.";
@@ -125,13 +115,15 @@ public class IoTPipelineConfigurator implements ActiveMQServerBasePlugin {
 						"callCreateDivert divertName: %s, address: %s forwardingAddress: %s exclusive: %s filterString: %s, transformerClassName: %s, transformerPropertiesAsJSON: %s, routingType: %s",
 						divertName, address, forwardingAddress, "" + exclusive, filterString, transformerClassName,
 						transformerPropertiesAsJSON, routingType));
-				Message m = session.createMessage();				
-				//	createDivert​(String name, String routingName, String address, String forwardingAddress, boolean exclusive, String filterString, 
-				//String transformerClassName, String transformerPropertiesAsJSON, String routingType)
-				JMSManagementHelper.putOperationInvocation(m, ResourceNames.BROKER, "createDivert", divertName,divertName, address,
-						forwardingAddress, exclusive, filterString, transformerClassName, transformerPropertiesAsJSON,routingType
-						);
-				
+				Message m = session.createMessage();
+				// createDivert​(String name, String routingName, String address, String
+				// forwardingAddress, boolean exclusive, String filterString,
+				// String transformerClassName, String transformerPropertiesAsJSON, String
+				// routingType)
+				JMSManagementHelper.putOperationInvocation(m, ResourceNames.BROKER, "createDivert", divertName,
+						divertName, address, forwardingAddress, exclusive, filterString, transformerClassName,
+						transformerPropertiesAsJSON, routingType);
+
 				Message reply = requestor.request(m);
 				boolean success = JMSManagementHelper.hasOperationSucceeded(reply);
 				if (success) {
@@ -139,7 +131,7 @@ public class IoTPipelineConfigurator implements ActiveMQServerBasePlugin {
 					return true;
 				} else {
 					String error = JMSManagementHelper.getResult(reply).toString();
-					LOGGER.error("Failed to list diverts: "+error);
+					LOGGER.error("Failed to list diverts: " + error);
 					return false;
 				}
 
@@ -177,7 +169,8 @@ public class IoTPipelineConfigurator implements ActiveMQServerBasePlugin {
 
 		}
 
-		private void createDivert(String stepName, IoTPipelineStepConfiguration inputConfig) throws JsonProcessingException {
+		private void createDivert(String stepName, IoTPipelineStepConfiguration inputConfig)
+				throws JsonProcessingException {
 
 			String divertName = IOT_PIPELINE_DIVERT_PREFIX + stepName + ".input";
 			String divertAddress = IOT_DPP_TOPICS_PREFIX + inputConfig.inputStream + ".output";
@@ -185,12 +178,13 @@ public class IoTPipelineConfigurator implements ActiveMQServerBasePlugin {
 
 			ObjectMapper om = new ObjectMapper();
 			String divertProperties = om
-					.writeValueAsString(Map.of(MessageGroupIDAnotator.GROUP_ID_EXTRACTION_CONFIG_MAP_ENV_VAR,Map.of(forwardingAddress, inputConfig.groupingKeyAccessor)));
-			
+					.writeValueAsString(Map.of(MessageGroupIDAnotator.GROUP_ID_EXTRACTION_CONFIG_MAP_ENV_VAR,
+							Map.of(forwardingAddress, inputConfig.groupingKeyAccessor)));
+
 			createDivert(divertName, divertAddress, forwardingAddress, false, null,
 					GroupIDAnnotationDivertTransfomer.class.getName(), divertProperties,
 					ComponentConfigurationRoutingType.MULTICAST.toString());
-			
+
 		}
 
 		private void initDiverts() {
@@ -198,7 +192,8 @@ public class IoTPipelineConfigurator implements ActiveMQServerBasePlugin {
 			List<String> diverts = listDivertNames();
 			diverts = diverts != null ? diverts : List.of();
 			LOGGER.info("Existing diverts: " + String.join(", ", diverts));
-			diverts = diverts.stream().filter(d -> d.startsWith(IOT_PIPELINE_DIVERT_PREFIX)).toList();
+			diverts = diverts.stream().filter(d -> d.startsWith(IOT_PIPELINE_DIVERT_PREFIX))
+					.collect(Collectors.toList());
 			LOGGER.info("NebulOuS diverts: " + String.join(", ", diverts));
 			if (!diverts.isEmpty()) {
 				LOGGER.info("Remove exising NebulOuS diverts");
@@ -212,16 +207,53 @@ public class IoTPipelineConfigurator implements ActiveMQServerBasePlugin {
 				try {
 					createDivert(step, pipelineSteps.get(step));
 				} catch (JsonProcessingException e) {
-					LOGGER.error("",e);
+					LOGGER.error("", e);
 				}
 			}
-			
+
 			diverts = listDivertNames();
 			diverts = diverts != null ? diverts : List.of();
 			LOGGER.info("Existing diverts: " + String.join(", ", diverts));
-			diverts = diverts.stream().filter(d -> d.startsWith(IOT_PIPELINE_DIVERT_PREFIX)).toList();
+			diverts = diverts.stream().filter(d -> d.startsWith(IOT_PIPELINE_DIVERT_PREFIX))
+					.collect(Collectors.toList());
 			LOGGER.info("NebulOuS diverts: " + String.join(", ", diverts));
 
+		}
+
+		private void createInputQueues() {
+			LOGGER.info("createInputQueues");
+			for (String step : pipelineSteps.keySet()) {
+				LOGGER.info("create input queue for step " + step);
+				createInputQueue(step, pipelineSteps.get(step));
+
+			}
+		}
+
+		private boolean createInputQueue(String stepName, IoTPipelineStepConfiguration inputConfig) {
+			try {
+				String addressName = IOT_DPP_TOPICS_PREFIX + stepName + ".input." + inputConfig.inputStream;
+				String queueName = "all." + addressName;
+				String filter = "NOT ((AMQAddress = 'activemq.management') OR (AMQAddress = 'activemq.notifications'))";
+				LOGGER.info(String.format("Creating queue. Address: %s QueueName: %s", addressName, queueName));
+				Message m = session.createMessage();
+				JMSManagementHelper.putOperationInvocation(m, ResourceNames.BROKER, "createQueue", addressName,
+						queueName, filter, true);
+
+				Message reply = requestor.request(m);
+				boolean success = JMSManagementHelper.hasOperationSucceeded(reply);
+				if (success) {
+					Object result = JMSManagementHelper.getResult(reply);
+					return true;
+				} else {
+					String error = JMSManagementHelper.getResult(reply).toString();
+					LOGGER.error("Failed to createInputQueue: " + error);
+					return false;
+				}
+
+			} catch (Exception ex) {
+				LOGGER.error("", ex);
+				return false;
+			}
 		}
 
 		@Override
@@ -229,6 +261,7 @@ public class IoTPipelineConfigurator implements ActiveMQServerBasePlugin {
 			LOGGER.info("IoTPipelineConfigurator registered");
 			connect(activemqURL, activemqUser, activemqPassword);
 			initDiverts();
+			createInputQueues();
 
 		}
 

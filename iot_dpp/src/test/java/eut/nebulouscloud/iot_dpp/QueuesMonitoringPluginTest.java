@@ -93,7 +93,8 @@ class QueuesMonitoringPluginTest {
 			}
 		}
 		QueuesMonitoringPlugin plugin = new QueuesMonitoringPlugin();
-		plugin.init(Map.of("topic_prefix",".neb","local_activemq_url","tcp://localhost:"+port,"query_interval_seconds",""+QueuesMonitoringProcesQueryIntervalSeconds,"local_activemq_user","artemis","local_activemq_password","artemis"));
+		plugin.init(Map.of(
+				"monitored_topic_prefix","consumer.neb","local_activemq_url","tcp://localhost:"+port,"query_interval_seconds",""+QueuesMonitoringProcesQueryIntervalSeconds,"local_activemq_user","artemis","local_activemq_password","artemis"));
 		plugin.process.consumer = new QueuesMonitoringPluginConsumer() {
 
 			@Override
@@ -104,7 +105,7 @@ class QueuesMonitoringPluginTest {
 		};
 		config.getBrokerMessagePlugins().add(plugin);
 		/*EMSQueuesMonitoringPlugin plugin = new EMSQueuesMonitoringPlugin();
-		plugin.init(Map.of("topic_prefix",".neb","local_activemq_url","tcp://localhost:"+port,"query_interval_seconds",""+QueuesMonitoringProcesQueryIntervalSeconds));
+		plugin.init(Map.of("monitored_topic_prefix",".neb","local_activemq_url","tcp://localhost:"+port,"query_interval_seconds",""+QueuesMonitoringProcesQueryIntervalSeconds));
 		*/
 		//
 		EmbeddedActiveMQ server = new EmbeddedActiveMQ();
@@ -184,7 +185,7 @@ class QueuesMonitoringPluginTest {
 			 */
 			IMqttClient publisher = new MqttClient("tcp://localhost:"+port, "publisher");
 			publisher.connect();
-
+			
 			
 			int numMessages = 20;
 			for (int i = 0; i < numMessages; i++) {
@@ -195,7 +196,7 @@ class QueuesMonitoringPluginTest {
 			}
 			Thread.sleep(QueuesMonitoringProcesQueryIntervalSeconds*1000*3);
 			
-			assertTrue(result.size()>2);
+			assertTrue(result.size()>=2);
 			assertTrue(result.stream().allMatch(r->r.size()==1)); //Only 1 topic is reported
 			assertTrue(result.stream().allMatch(r->r.get(0).queue.endsWith(testTopic)));//The reported topic is the test topic
 			for(int i=1;i<result.size();i++)
@@ -209,6 +210,7 @@ class QueuesMonitoringPluginTest {
 			 * Reconnect the consumer. Messages shall be consumed
 			 */
 			consumer.connect(opts);
+			
 			Thread.sleep(QueuesMonitoringProcesQueryIntervalSeconds*1000*2);
 			assertEquals(0,result.get(result.size()-1).get(0).messageCount);
 

@@ -34,7 +34,7 @@ public class EMSQueuesMonitoringPluginConsumer implements QueuesMonitoringPlugin
 			long timestamp = new Date().getTime();
 			for(String metric : metrics.keySet())
 			{
-				publisher._send(String.join("_",messageAddress,metric), metrics.get(metric), timestamp);
+				publisher._send(String.join("_",messageAddress,metric,"SENSOR"), metrics.get(metric), timestamp);
 			}
 			
 		} catch (Exception e) {
