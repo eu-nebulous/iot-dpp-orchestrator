@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"
+		type="text/javascript"></script>
+	<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+
+
+	<title>MQTT WebSocket Client</title>
+	<style>
+		body {
+			font-family: Arial, sans-serif;
+			padding: 20px;
+		}
+
+		#connection-status {
+			height: 5px;
+			background-color: red;
+		}
+
+		table {
+			width: 100%;
+			border-collapse: collapse;
+			margin-top: 20px;
+		}
+
+		th,
+		td {
+			border: 1px solid #ddd;
+			padding: 8px;
+		}
+
+		th {
+			background-color: #f2f2f2;
+			text-align: left;
+		}
+
+		.node {
+			display: inline-block;
+			text-align: center;
+			margin: 20px;
+		}
+
+		.edge {
+			width: 0;
+			height: 0;
+			border-style: solid;
+			position: absolute;
+		}
+
+		#graph {
+			position: relative;
+			margin: 50px;
+		}
+		.canvas-row{
+			display: flex;
+		}
+		.canvas-container {
+  		display: flex;
+  		width: 33%;
+		}
+		.activated{
+			background-color: red;
+		}
+	</style>
+</head>
+
+<body>
+	<h1>MQTT WebSocket Client</h1>
+	<div id="connection-status"></div>
+
+
+
+
+	<div>
+		<label for="broker-ip">Broker IP:</label>
+		<input type="text" id="broker-ip" value="localhost">
+		<label for="broker-port">Broker Port:</label>
+		<input type="text" id="broker-port" value="1883">
+		<label for="username">User:</label>
+		<input type="text" id="username" value="artemis">
+		<label for="password">Password:</label>
+		<input type="password" id="password" value="artemis">
+		<button id="connect">Connect</button>
+	</div>
+	
+	<h1>Metrics</h1>
+	<div id="metrics"></div>
+	<table id="messages">
+		<thead>
+			<tr>
+				<th>#</th>
+				<th>Status</th>
+				<th>Creation date</th>
+				<th colspan="5">Step A</th>
+				<th colspan="5">Step B</th>
+				<th colspan="5">Step C</th>
+				<th colspan="5">Step D</th>
+			</tr>
+			<tr>
+				<th></th>
+				<th></th>
+				<th></th>
+				<th>Worker ID</th>
+				<th>Duration (s)</th>
+				<th>Completion time</th>
+				<th>Accum. Latency (s)</th>
+				<th>Step Latency (s)</th>
+
+
+				<th>Worker ID</th>
+				<th>Duration</th>
+				<th>Completion time</th>
+				<th>Accum. Latency (s)</th>
+				<th>Step Latency (s)</th>
+
+				<th>Worker ID</th>
+				<th>Duration</th>
+				<th>Completion time</th>
+				<th>Accum. Latency (s)</th>
+				<th>Step Latency (s)</th>
+
+
+				<th>Worker ID</th>
+				<th>Duration</th>
+				<th>Completion time</th>
+				<th>Accum. Latency (s)</th>
+				<th>Step Latency (s)</th>
+
+			<tr>
+		</thead>
+		<tbody id="messages">
+		</tbody>
+	</table>
+
+
+
+	<div>
+		<h2>Send JSON Payload</h2>
+		<label f>Step duration (seconds):</label>
+		<div>
+			<label for="step_A_duration_input">A: </label>
+			<input type="number" id="step_A_duration_input" value="2">
+		</div>
+		<div>
+			<label for="step_B_duration_input">B:</label>
+			<input type="number" id="step_B_duration_input" value="2">
+		</div>
+		<div>
+			<label for="step_C_duration_input">C:</label>
+			<input type="number" id="step_C_duration_input" value="2">
+		</div>
+		<div>
+			<label for="step_D_duration_input">D:</label>
+			<input type="number" id="step_D_duration_input" value="2">
+		</div>
+		<button id="send">Send</button>
+		<div>
+			<label for="auto_send_interval">Send interval (s):</label>
+			<input type="number" id="auto_send_interval" value="2">
+			<button id="auto_send">Start</button>
+		</div>
+	</div>
+
+	<script>
+		let client;
+
+		function onConnect() {
+			$('#connection-status').css('background-color', 'green');
+			console.log("Connected to broker");
+			client.subscribe("iotdpp.#");
+			client.subscribe("monitoring.#");
+		}
+
+		function onFailure(err) {
+			$('#connection-status').css('background-color', 'red');
+			alert("Connection failed");
+			console.error("Connection failed: ", err);
+		}
+
+		function renderStepCells(data, step, prev_step) {
+
+			//<th>Worker ID</th>		
+			//<th>Duration</th>
+			//<th>Completion time</th>
+			//<th>Accum. Latency</th>
+			//<th>Step Latency</th>
+
+			var content = "<td>" + data[step]["worker_id"] + "</td>";
+			content += "<td>" + data[step]["duration"] + "</td>";
+			if (data[step]["completion_timestamp"]) {
+				content += "<td>" + data[step]["completion_timestamp"] + "</td>";
+				content += "<td>" + ((Date.parse(data[step]["completion_timestamp"]) - Date.parse(data["src"]["completion_timestamp"])) / 1000) + "</td>";
+				content += "<td>" + ((Date.parse(data[step]["completion_timestamp"]) - Date.parse(data[prev_step]["completion_timestamp"])) / 1000) + "</td>";
+			} else {
+				content += "<td>NA</td>";
+				content += "<td>NA</td>";
+				content += "<td>NA</td>";
+			}
+			return content;
+
+		}
+
+		var stepCharts = null;
+
+		function onIoTDPPMessageArrived(message)
+		{
+				var output_step = /.*\/(.*)\/output/g.exec(message.destinationName);
+				const new_payload = JSON.parse(message.payloadString);
+				var message_id = new_payload["message_id"];
+				var $row = $('tr').filter(function () {
+					return $(this).data("message_id") == message_id
+				});
+				if ($row.length == 0) {
+					$row = $('<tr>');
+					$row.data("message_id", new_payload["message_id"])
+					$row.data("payload", new_payload)
+					$('#messages').append($row);
+				}
+
+				var payload = $row.data("payload")
+				if (output_step != null) {
+					payload[output_step[1]] = new_payload[output_step[1]];
+				}
+				$row.data("payload", payload);
+
+				var content = "<td>" + payload["message_id"] + "</td>";
+
+				var status = payload["stepA"]["completion_timestamp"] && payload["stepB"]["completion_timestamp"] && payload["stepC"]["completion_timestamp"] && payload["stepD"]["completion_timestamp"] ? "COMPLETED" : "ONGOING";
+				status = payload["stepA"]["completion_timestamp"] ? status : "PENDING"
+				content += "<td>" + status + "</td>";
+				content += "<td>" + payload["src"]["completion_timestamp"] + "</td>";
+				content += renderStepCells(payload, "stepA", "src");
+				content += renderStepCells(payload, "stepB", "stepA");
+				content += renderStepCells(payload, "stepC", "stepB");
+				content += renderStepCells(payload, "stepD", "stepA");
+				$row.html(content);
+		}	
+
+		function onMonitoringMessageArrived(message)
+		{
+			var destination = /.*_(.*)_input_.*/g.exec(message.destinationName)[1];
+			const payload = JSON.parse(message.payloadString);
+
+			var metric = /.*_(\w+)_SENSOR/g.exec(message.destinationName)[1];
+			var datasetOrder = ["MaxMessageAge","MessageCount","ConsumersCount"];
+
+			if(datasetOrder.indexOf(metric) == -1)
+			{
+				console.warn("Ignoring metric "+metric);
+				return;
+			}
+
+			//if(metric != "MessageCount") return;
+			var chart = stepCharts[destination][metric];
+			chart.data.labels.push(new Date(Number(payload["timestamp"])));
+			chart.data.datasets[0].data.push(Number(payload["metricValue"]));
+			chart.update();
+		}
+
+		function onMessageArrived(message) {
+			try {
+				if(message.destinationName.startsWith("iotdpp"))
+			{
+				onIoTDPPMessageArrived(message);
+				return;
+			}
+			if(message.destinationName.startsWith("monitoring"))
+			{
+				onMonitoringMessageArrived(message);
+				return;
+			}
+			
+			console.error("Unknown message destination: "+message.destinationName);
+			} catch (error) {
+				console.error(error)
+			}
+		}
+
+		function initChart(element,metric) {
+			const ctx = element.getContext('2d');
+
+			return new Chart(ctx, {
+				type: 'line',
+				data: {
+					labels: [], // Time labels
+					datasets: [
+						{
+							label: metric,
+							borderColor: 'rgba(255, 99, 132, 1)',
+							backgroundColor: 'rgba(255, 99, 132, 0.2)',
+							data: []
+						}
+					]
+				},
+				options: {
+					responsive: true,
+					scales: {
+						x: {
+							type: 'time',
+							time: {
+								unit: 'second'
+							},
+							title: {
+								display: true,
+								text: 'Time'
+							}
+						},
+						y: {
+							title: {
+								display: true,
+								text: 'Values'
+							}
+						}
+					}
+				}
+			});
+		}
+		var message_counter = 0;
+		function send_message() {
+				const topic = "iotdpp.src.output";
+				const payload = {
+					"message_id": message_counter++,
+					"src": { "completion_timestamp": new Date().toISOString() },
+					"stepA": { "duration": $('#step_A_duration_input').val() },
+					"stepB": { "duration": $('#step_B_duration_input').val() },
+					"stepC": { "duration": $('#step_C_duration_input').val() },
+					"stepD": { "duration": $('#step_D_duration_input').val() },
+				};
+				const message = new Paho.MQTT.Message(JSON.stringify(payload));
+				message.destinationName = topic;
+				message.qos = 2;
+				if (client && client.isConnected()) {
+					client.send(message);
+				} else {
+					if(auto_send_timer!=null)
+					{
+						clearInterval(auto_send_timer)
+						auto_send_timer = null;
+					}
+					alert("You must connect to the broker first.");
+				}
+		}		
+		var auto_send_timer = null
+
+		$(document).ready(function () {
+
+			stepCharts = {};
+			["A","B","C","D"].forEach(step => {		
+				stepCharts["step"+step] = {};
+				$div = $("<div>").addClass("canvas-row");;
+				$("#metrics").append("<h3> Step "+step+"</h3>");
+				$("#metrics").append("<hr>");
+				$("#metrics").append($div);
+
+				["MaxMessageAge","MessageCount","ConsumersCount"].forEach(metric=> {
+
+					var $canvas = $("<canvas/>").prop({
+                    width: 200,
+                    height: 200
+                });
+				$canvascontainer = $("<div>").addClass("canvas-container");
+				$div.append($canvascontainer);
+				
+
+
+				$canvascontainer.append($canvas);
+					stepCharts["step"+step][metric]= initChart($canvas[0],metric);
+				}
+				);
+				
+			});
+			
+			$('#connect').click(function () {
+				const broker = $('#broker-ip').val();
+				const broker_port = Number($('#broker-port').val());
+				const username = $('#username').val();
+				const password = $('#password').val();
+				client = new Paho.MQTT.Client(broker, broker_port, "clientId-" + Math.random().toString(36).substr(2, 9));
+
+				const options = {
+					useSSL: broker.startsWith("wss"),
+					userName: username,
+					password: password,
+					onSuccess: onConnect,
+					onFailure: onFailure
+				};
+
+				client.onMessageArrived = onMessageArrived;
+				client.connect(options);
+			});
+
+
+			
+			$('#auto_send').click(function(){
+				if(auto_send_timer!=null)
+				{
+					clearInterval(auto_send_timer)
+					auto_send_timer = null;
+					$('#auto_send').html("Start");
+					$('#auto_send').removeClass(".activated");
+				}
+				else
+				{
+					auto_send_timer = setInterval(function(){send_message();},Number($("#auto_send_interval").val())*1000);			
+					$('#auto_send').html("Stop");
+					$('#auto_send').addClass("activated");
+				}
+				
+			})			
+			$('#send').click(send_message);
+		});
+	</script>
+</body>
+
+</html>
