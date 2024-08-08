@@ -1,0 +1,30 @@
+{
+    "stepA": {
+        "inputStream": "src",
+        "groupingKeyAccessor": {
+            "source": "BODY_JSON",
+            "expression": "fieldA"
+        }
+    },
+    "stepB": {
+        "inputStream": "stepA",
+        "groupingKeyAccessor": {
+            "source": "BODY_JSON",
+            "expression": "fieldB"
+        }
+    },
+    "stepC": {
+        "inputStream": "stepB",
+        "groupingKeyAccessor": {
+            "source": "BODY_JSON",
+            "expression": "fieldC"
+        }
+    },
+    "stepD": {
+        "inputStream": "stepA",
+        "groupingKeyAccessor": {
+            "source": "BODY_JSON",
+            "expression": "fieldD"
+        }
+    }
+}

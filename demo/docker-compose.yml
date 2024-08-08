@@ -1,0 +1,82 @@
+version: '3.7'      
+services:
+  activemq:
+    image: apache/activemq-artemis:2.31.2-alpine
+    container_name: activemq
+    restart: always
+    ports:
+        - 6161:61616
+        - 8161:8161
+        - 6167:61619 #stomp
+        - 5672:5672 # amqp
+        - 1883:1883
+        - 1889:1889 #mqtt WS
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50M"
+        max-file: "2" 
+    volumes:
+        - ./broker/etc:/var/lib/artemis-instance/etc-override
+        #- ./broker/etc/broker.xml:/var/lib/artemis-instance/etc/broker.xml
+        #- ./broker/etc:/var/lib/artemis-instance/etc
+        - ./broker/lib:/var/lib/artemis-instance/lib
+    environment:
+        - ARTEMIS_MAX_MEMORY=1024M
+        
+  step_a:
+    image: ems-nebulous-iot/worker
+    build: 
+      context: ./worker
+      dockerfile: ./Dockerfile
+    restart: always
+    environment:
+      - mqtt_ip=activemq
+      - mqtt_port=1883
+      - step_name=stepA
+      - previous_step_name=src      
+      - mqtt_user=artemis
+      - mqtt_password=artemis
+      
+  step_b:
+    image: ems-nebulous-iot/worker
+    build: 
+      context: ./worker
+      dockerfile: ./Dockerfile
+    restart: always
+    environment:
+      - mqtt_ip=activemq
+      - mqtt_port=1883
+      - step_name=stepB
+      - previous_step_name=stepA      
+      - mqtt_user=artemis
+      - mqtt_password=artemis
+      
+  step_c:
+    image: ems-nebulous-iot/worker
+    build: 
+      context: ./worker
+      dockerfile: ./Dockerfile
+    restart: always
+    environment:
+      - mqtt_ip=activemq
+      - mqtt_port=1883
+      - step_name=stepC
+      - previous_step_name=stepB
+      - mqtt_user=artemis
+      - mqtt_password=artemis
+      
+      
+  step_d:
+    image: ems-nebulous-iot/worker
+    build: 
+      context: ./worker
+      dockerfile: ./Dockerfile
+    restart: always
+    environment:
+      - mqtt_ip=activemq
+      - mqtt_port=1883
+      - step_name=stepD
+      - previous_step_name=stepA
+      - mqtt_user=artemis
+      - mqtt_password=artemis

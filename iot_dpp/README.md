@@ -54,6 +54,22 @@ The following parameters are needed for the plugin:
 - ems_password (defaults to "111")
 
 
+
+### IoTPipelineConfigurator 
+
+Apache Artemis plugin responsible for parsing the IoT pipeline definition JSON and configure the local Artemis message broker to enact said pipeline.
+
+
+The following parameters are needed for the pluggin:
+
+- IOT_DPP_PIPELINE_STEPS: A JSON encoded string containing the configuration for the IoT pipeline. This configuration is a `Map<String, IoTPipelineStepConfiguration>` where keys are names of the pipeline steps and the values are `IoTPipelineStepConfiguration` providing: 
+	- inputStream (String): The input stream from the pipeline step.
+	- groupingKeyAccessor (GroupIDExtractionParameters): The config to extract group ID for each input message of the step. 
+	
+At startup, IoTPipelineConfigurator checks the local Artemis broker for existing diverts. Removes any existing one, and creates the diverts as specified in the coniguration.
+For each step with name <step_B> and input stream <step_A>, a non exclusinve divert from topic iotdpp.<step_A>.output is created. This divert sends messages to the topic iotdpp.<step_B>.input.<step_A>.
+
+
 ## Installation
 
 Build the source code.

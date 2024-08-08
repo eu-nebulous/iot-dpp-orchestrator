@@ -13,8 +13,9 @@ public class EMSQueuesMonitoringPlugin extends QueuesMonitoringPlugin {
 
 	@Override
 	public void init(Map<String, String> properties) {
-		String topicPrefix = Optional.ofNullable(properties.getOrDefault("topic_prefix", null))
-				.orElseThrow(() -> new IllegalStateException("topic_prefix parameter is not defined"));
+		String monitoredTopicPrefix = Optional.ofNullable(properties.getOrDefault("monitored_topic_prefix", null))
+				.orElseThrow(() -> new IllegalStateException("monitored_topic_prefix parameter is not defined"));
+		String reportingTopicPrefix = properties.getOrDefault("reporting_topic_prefix", "/topic/monitoring");
 		int QUERY_INTERVAL_MS = Integer.parseInt(properties.getOrDefault("query_interval_seconds", "3")) * 1000;
 		String activemqURL = properties.getOrDefault("local_activemq_url", "tcp://localhost:61616");
 	
@@ -32,16 +33,17 @@ public class EMSQueuesMonitoringPlugin extends QueuesMonitoringPlugin {
 				.orElseThrow(() -> new IllegalStateException("ems_password parameter is not defined"));
 
 		LOGGER.info("Init EMSQueuesMonitoringPlugin with parameters:");
-		LOGGER.info("topicPrefix: " + topicPrefix);
+		LOGGER.info("monitoredTopicPrefix: " + monitoredTopicPrefix);
+		LOGGER.info("reportingTopicPrefix: "+reportingTopicPrefix);
 		LOGGER.info("query_interval_ms: " + QUERY_INTERVAL_MS);
 		LOGGER.info("activemqURL: " + activemqURL);
 		LOGGER.info("activemqUser: " + activemqUser);
 		LOGGER.info("emsURL: " + emsURL);
 		LOGGER.info("emsUser: " + emsUser);
 
-		EventManagementSystemPublisher publisher = new EventManagementSystemPublisher(emsURL, emsUser, emsPassword);
+		EventManagementSystemPublisher publisher = new EventManagementSystemPublisher(emsURL, emsUser, emsPassword,reportingTopicPrefix);
 		QueuesMonitoringPluginConsumer consumer = new EMSQueuesMonitoringPluginConsumer(publisher);
-		process = new QueuesMonitoringProcess(topicPrefix, QUERY_INTERVAL_MS, activemqURL, activemqUser,
+		process = new QueuesMonitoringProcess(monitoredTopicPrefix, QUERY_INTERVAL_MS, activemqURL, activemqUser,
 				activemqPassword, consumer);
 		new Thread(process).start();
 

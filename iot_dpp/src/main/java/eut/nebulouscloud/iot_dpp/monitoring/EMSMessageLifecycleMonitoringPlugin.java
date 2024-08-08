@@ -30,8 +30,12 @@ public class EMSMessageLifecycleMonitoringPlugin extends MessageLifecycleMonitor
 				.orElseThrow(() -> new IllegalStateException("ems_user parameter is not defined")); 
 		String emsPassword = Optional.ofNullable(properties.getOrDefault("ems_password", null))
 				.orElseThrow(() -> new IllegalStateException("ems_password parameter is not defined"));
-		publisher = new EventManagementSystemPublisher(emsURL, emsUser, emsPassword);		
+		
+		String reportingTopicPrefix = properties.getOrDefault("reporting_topic_prefix", "/topic/");
+		
+		publisher = new EventManagementSystemPublisher(emsURL, emsUser, emsPassword, reportingTopicPrefix);		
 		LOGGER.info("Init EMSMessageLifecycleMonitoringPlugin with parameters:");
+		LOGGER.info("reportingTopicPrefix"+reportingTopicPrefix);
 		LOGGER.info("emsURL: "+emsURL);
 		LOGGER.info("emsUser: "+emsUser);
 		

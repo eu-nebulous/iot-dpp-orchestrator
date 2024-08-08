@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerMessagePlugin;
+import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerPlugin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,7 +22,7 @@ import eut.nebulouscloud.iot_dpp.monitoring.QueuesMonitoringPlugin.QueuesMonitor
  * are grouped by the value of the “JMSXGroupID” attribute associated to each
  * message
  */
-public class QueuesMonitoringPlugin implements ActiveMQServerMessagePlugin {
+public class QueuesMonitoringPlugin implements ActiveMQServerPlugin {
 	
 	public QueuesMonitoringProcess process;
 
@@ -29,8 +30,8 @@ public class QueuesMonitoringPlugin implements ActiveMQServerMessagePlugin {
 
 	@Override
 	public void init(Map<String, String> properties) {
-		String topicPrefix = Optional.ofNullable(properties.getOrDefault("topic_prefix", null))
-				.orElseThrow(() -> new IllegalStateException("topic_prefix parameter is not defined"));
+		String monitoredTopicPrefix = Optional.ofNullable(properties.getOrDefault("monitored_topic_prefix", null))
+				.orElseThrow(() -> new IllegalStateException("monitored_topic_prefix parameter is not defined"));
 		int QUERY_INTERVAL_MS = Integer.parseInt(properties.getOrDefault("query_interval_seconds", "3")) * 1000;
 		String activemqURL = properties.getOrDefault("local_activemq_url", "tcp://localhost:61616");
 		
@@ -39,7 +40,7 @@ public class QueuesMonitoringPlugin implements ActiveMQServerMessagePlugin {
 		String activemqPassword = Optional.ofNullable(properties.getOrDefault("local_activemq_user", null))
 				.orElseThrow(() -> new IllegalStateException("local_activemq_password parameter is not defined"));
 		
-		process = new QueuesMonitoringProcess(topicPrefix, QUERY_INTERVAL_MS, activemqURL, activemqUser,
+		process = new QueuesMonitoringProcess(monitoredTopicPrefix, QUERY_INTERVAL_MS, activemqURL, activemqUser,
 				activemqPassword, null);
 		new Thread(process).start();
 

@@ -31,15 +31,15 @@ public class QueuesMonitoringProcess implements Runnable {
 	QueueRequestor requestor;
 	public QueuesMonitoringPluginConsumer consumer;
 
-	final String topicPrefix;
+	final String monitoredTopicPrefix;
 	final int queryIntervalMS;
 	final String localActiveMQURL;
 	final String localActiveMQUser;
 	final String localActiveMQPassword;
 
-	public QueuesMonitoringProcess(String topicPrefix, int queryIntervalMS, String activemqURL, String activemqUser,
+	public QueuesMonitoringProcess(String monitoredTopicPrefix, int queryIntervalMS, String activemqURL, String activemqUser,
 			String activemqPassword, QueuesMonitoringPluginConsumer consumer) {
-		this.topicPrefix = topicPrefix;
+		this.monitoredTopicPrefix = monitoredTopicPrefix;
 		this.queryIntervalMS = queryIntervalMS;
 		this.localActiveMQURL = activemqURL;
 		this.localActiveMQUser = activemqUser;
@@ -66,12 +66,15 @@ public class QueuesMonitoringProcess implements Runnable {
 		List<String> ret = new LinkedList<String>();
 		boolean success = JMSManagementHelper.hasOperationSucceeded(reply);
 		if (success) {
-			Object[] addresses = (Object[]) JMSManagementHelper.getResult(reply);
+			Object[] queues = (Object[]) JMSManagementHelper.getResult(reply);
 
-			for (Object address : addresses) {
-				String addressName = (String) address;
-				if (addressName.contains(topicPrefix)) {
-					ret.add(address.toString());
+			for (Object queue : queues) {
+				String addressName = (String) queue;
+				if (addressName.startsWith(monitoredTopicPrefix)) {
+					ret.add(queue.toString());
+				}else
+				{
+					LOGGER.info("Ignore queue "+queue );
 				}
 
 			}
@@ -90,7 +93,7 @@ public class QueuesMonitoringProcess implements Runnable {
 
 			for (Object address : addresses) {
 				String addressName = (String) address;
-				if (addressName.startsWith(topicPrefix)) {
+				if (addressName.startsWith(monitoredTopicPrefix)) {
 					ret.add(address.toString());
 				}
 
