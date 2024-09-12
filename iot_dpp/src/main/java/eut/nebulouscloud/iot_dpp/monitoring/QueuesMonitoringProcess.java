@@ -1,7 +1,9 @@
 package eut.nebulouscloud.iot_dpp.monitoring;
 
+import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import javax.jms.Message;
@@ -12,12 +14,17 @@ import javax.jms.QueueSession;
 import javax.jms.Session;
 import javax.naming.InitialContext;
 
+import org.apache.activemq.artemis.api.core.management.ManagementHelper;
 import org.apache.activemq.artemis.api.core.management.ResourceNames;
 import org.apache.activemq.artemis.api.jms.management.JMSManagementHelper;
+import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.apache.activemq.artemis.core.server.ServerConsumer;
 import org.apache.activemq.artemis.jms.client.ActiveMQConnectionFactory;
+import org.apache.activemq.artemis.jms.client.ActiveMQMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import eut.nebulouscloud.iot_dpp.monitoring.QueuesMonitoringPlugin.QueuesMonitoringPluginConsumer;
 
@@ -30,15 +37,16 @@ public class QueuesMonitoringProcess implements Runnable {
 	Queue managementQueue;
 	QueueRequestor requestor;
 	public QueuesMonitoringPluginConsumer consumer;
-
+	final ActiveMQServer server;
 	final String monitoredTopicPrefix;
 	final int queryIntervalMS;
 	final String localActiveMQURL;
 	final String localActiveMQUser;
 	final String localActiveMQPassword;
 
-	public QueuesMonitoringProcess(String monitoredTopicPrefix, int queryIntervalMS, String activemqURL, String activemqUser,
-			String activemqPassword, QueuesMonitoringPluginConsumer consumer) {
+	public QueuesMonitoringProcess(ActiveMQServer server, String monitoredTopicPrefix, int queryIntervalMS,
+			String activemqURL, String activemqUser, String activemqPassword, QueuesMonitoringPluginConsumer consumer) {
+		this.server = server;
 		this.monitoredTopicPrefix = monitoredTopicPrefix;
 		this.queryIntervalMS = queryIntervalMS;
 		this.localActiveMQURL = activemqURL;
@@ -72,9 +80,8 @@ public class QueuesMonitoringProcess implements Runnable {
 				String addressName = (String) queue;
 				if (addressName.startsWith(monitoredTopicPrefix)) {
 					ret.add(queue.toString());
-				}else
-				{
-					LOGGER.info("Ignore queue "+queue );
+				} else {
+					LOGGER.info("Ignore queue " + queue);
 				}
 
 			}
@@ -119,61 +126,100 @@ public class QueuesMonitoringProcess implements Runnable {
 		requestor = new QueueRequestor(session, managementQueue);
 	}
 
-	private Integer getMessageCount(String queue) throws Exception {
+	private int getMessageCount(String queue) throws Exception {
 		Message m = session.createMessage();
 		JMSManagementHelper.putOperationInvocation(m, ResourceNames.QUEUE + queue, "getMessageCount");
 		Message reply = requestor.request(m);
 		if (JMSManagementHelper.hasOperationSucceeded(reply)) {
-			return (Integer) JMSManagementHelper.getResult(reply, Integer.class);
+			Integer ret=  (Integer) JMSManagementHelper.getResult(reply, Integer.class);
+			return ret!=null?ret:-1;
+			
 		} else {
 			LOGGER.error("Can't query message count for queue " + queue);
-			return null;
+			return -1;
 		}
 	}
 
-	private Long getOldestMessageAge(String queue) throws Exception {
+	private long getOldestMessageAge2(String queue) {
 
-		Message m = session.createMessage();
-		m = session.createMessage();
-		JMSManagementHelper.putOperationInvocation(m, ResourceNames.QUEUE + queue, "getFirstMessageAge");
-		Message reply = requestor.request(m);
-		if (JMSManagementHelper.hasOperationSucceeded(reply)) {
-			return (Long) JMSManagementHelper.getResult(reply, Long.class);
-		} else {
-			LOGGER.error("Can't query message age for queue " + queue);
-			return null;
+		try {
+			Message m = session.createMessage();
+			m = session.createMessage();
+			JMSManagementHelper.putOperationInvocation(m, ResourceNames.QUEUE + queue, "getFirstMessageAge");
+			Message reply = requestor.request(m);
+			if (JMSManagementHelper.hasOperationSucceeded(reply)) {		
+				Long ret =  (Long)JMSManagementHelper.getResult(reply, Long.class);
+				return ret!=null?ret:-1;
+				
+			} else {
+				LOGGER.error("Can't query message age for queue " + queue);
+				return -1l;
+			}
+		} catch (Exception ex) {
+			return -1l;
 		}
 
 	}
+	private long getOldestMessageAge(String queue) {
 
-	private Integer getConsumersCount(String queue) throws Exception {
-
-		Message m = session.createMessage();
-		m = session.createMessage();
-		JMSManagementHelper.putOperationInvocation(m, ResourceNames.QUEUE + queue, "getConsumerCount");
-		Message reply = requestor.request(m);
-		if (JMSManagementHelper.hasOperationSucceeded(reply)) {
-			return (Integer) JMSManagementHelper.getResult(reply, Integer.class);
-		} else {
-			LOGGER.error("Can't query consumerCount for queue " + queue);
-			return null;
+		try {
+			Message m = session.createMessage();
+			m = session.createMessage();
+			JMSManagementHelper.putOperationInvocation(m, ResourceNames.QUEUE + queue, "listDeliveringMessagesAsJSON");
+			Message reply = requestor.request(m);
+			if (JMSManagementHelper.hasOperationSucceeded(reply)) {		
+				String ret =  (String)JMSManagementHelper.getResult(reply, String.class);
+				Long timestamp = ((Long)new ObjectMapper().readValue(ret, Map.class).get("timestamp"));				
+				return ret!=null?(new Date().getTime()-timestamp):-1;
+				
+			} else {
+				LOGGER.error("Can't query message age for queue " + queue);
+				return -1l;
+			}
+		} catch (Exception ex) {
+			return -1l;
 		}
 
 	}
+	
+	
 
-	private Integer getGroupCount(String queue) throws Exception {
+	private int getConsumersCount(String queue) {
 
-		Message m = session.createMessage();
-		m = session.createMessage();
-		JMSManagementHelper.putOperationInvocation(m, ResourceNames.QUEUE + queue, "getGroupCount");
-		Message reply = requestor.request(m);
-		if (JMSManagementHelper.hasOperationSucceeded(reply)) {
-			return (Integer) JMSManagementHelper.getResult(reply, Integer.class);
-		} else {
-			LOGGER.error("Can't query getGroupCount for queue " + queue);
-			return null;
+		try {
+			Message m = session.createMessage();
+			m = session.createMessage();
+			JMSManagementHelper.putOperationInvocation(m, ResourceNames.QUEUE + queue, "getConsumerCount");
+			Message reply = requestor.request(m);
+			if (JMSManagementHelper.hasOperationSucceeded(reply)) {
+				Integer ret = (Integer) JMSManagementHelper.getResult(reply, Integer.class);
+				return ret!=null?ret:-1;
+			} else {
+				LOGGER.error("Can't query consumerCount for queue " + queue);
+				return -1;
+			}
+		} catch (Exception ex) {
+			return -1;
 		}
+	}
 
+	private int getGroupCount(String queue) {
+
+		try {
+			Message m = session.createMessage();
+			m = session.createMessage();
+			JMSManagementHelper.putOperationInvocation(m, ResourceNames.QUEUE + queue, "getGroupCount");
+			Message reply = requestor.request(m);
+			if (JMSManagementHelper.hasOperationSucceeded(reply)) {
+				Integer ret= (Integer) JMSManagementHelper.getResult(reply, Integer.class);
+				return ret!=null?ret:-1;
+			} else {
+				LOGGER.error("Can't query getGroupCount for queue " + queue);
+				return -1;
+			}
+		} catch (Exception ex) {
+			return -1;
+		}
 	}
 
 	private List<QueuesMonitoringMessage> collectMetrics() throws Exception {
@@ -187,7 +233,7 @@ public class QueuesMonitoringProcess implements Runnable {
 			message.consumersCount = getConsumersCount(queue);
 			message.groupCount = getGroupCount(queue);
 			if (message.messageCount > 0) {
-				message.maxMessageAge = getOldestMessageAge(queue);
+				message.maxMessageAge = getOldestMessageAge2(queue);
 			}
 			LOGGER.info("Collected metrics for queue {}:{}", queue, message);
 			ret.add(message);
@@ -198,6 +244,17 @@ public class QueuesMonitoringProcess implements Runnable {
 	@Override
 	public void run() {
 
+		while (server != null && !server.isActive()) {
+			LOGGER.info("Wait for server activation");
+
+			try {
+				Thread.sleep(1000);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+
 		System.setProperty("java.naming.factory.initial",
 				"org.apache.activemq.artemis.jndi.ActiveMQInitialContextFactory");
 
@@ -207,18 +264,14 @@ public class QueuesMonitoringProcess implements Runnable {
 				LOGGER.info("QueuesMonitoringProcess loop");
 				if (connection == null)
 					connect();
-				
+
 				List<QueuesMonitoringMessage> metrics = collectMetrics();
-				if(consumer!=null)
-				{
-					consumer.consume(metrics);	
-				}else
-				{
+				if (consumer != null) {
+					consumer.consume(metrics);
+				} else {
 					LOGGER.warn("QueuesMonitoringProcess doesn't have a consumer to consume collected metrics");
 				}
-					
-				
-				
+
 				LOGGER.info("Waiting {} for next round", queryIntervalMS);
 				Thread.sleep(queryIntervalMS);
 

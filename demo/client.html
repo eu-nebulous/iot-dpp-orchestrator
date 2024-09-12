@@ -173,8 +173,12 @@
 		function onConnect() {
 			$('#connection-status').css('background-color', 'green');
 			console.log("Connected to broker");
-			client.subscribe("iotdpp.#");
-			client.subscribe("monitoring.#");
+			client.subscribe("iotdpp/src/output");
+			client.subscribe("iotdpp/stepA/output");
+			client.subscribe("iotdpp/stepB/output");
+			client.subscribe("iotdpp/stepC/output");
+			client.subscribe("iotdpp/stepD/output");
+			client.subscribe("monitoring/#");
 		}
 
 		function onFailure(err) {
@@ -210,6 +214,7 @@
 
 		function onIoTDPPMessageArrived(message)
 		{
+				console.log("onIoTDPPMessageArrived "+message.destinationName)
 				var output_step = /.*\/(.*)\/output/g.exec(message.destinationName);
 				const new_payload = JSON.parse(message.payloadString);
 				var message_id = new_payload["message_id"];
@@ -244,6 +249,7 @@
 
 		function onMonitoringMessageArrived(message)
 		{
+			console.log("onMonitoringMessageArrived "+message.destinationName)
 			var destination = /.*_(.*)_input_.*/g.exec(message.destinationName)[1];
 			const payload = JSON.parse(message.payloadString);
 
@@ -323,7 +329,7 @@
 		}
 		var message_counter = 0;
 		function send_message() {
-				const topic = "iotdpp.src.output";
+				const topic = "iotdpp/src/output";
 				const payload = {
 					"message_id": message_counter++,
 					"src": { "completion_timestamp": new Date().toISOString() },

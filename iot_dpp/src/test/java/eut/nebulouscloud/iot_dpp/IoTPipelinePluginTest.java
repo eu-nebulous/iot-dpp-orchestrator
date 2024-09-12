@@ -24,8 +24,10 @@ import org.apache.activemq.artemis.core.config.TransformerConfiguration;
 import org.apache.activemq.artemis.core.config.impl.ConfigurationImpl;
 import org.apache.activemq.artemis.core.security.CheckType;
 import org.apache.activemq.artemis.core.security.Role;
+import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.apache.activemq.artemis.core.server.cluster.impl.MessageLoadBalancingType;
 import org.apache.activemq.artemis.core.server.embedded.EmbeddedActiveMQ;
+import org.apache.activemq.artemis.core.server.impl.ActiveMQServerImpl;
 import org.apache.activemq.artemis.spi.core.security.ActiveMQSecurityManager;
 import org.eclipse.paho.client.mqttv3.IMqttClient;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
@@ -39,6 +41,7 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import eut.nebulouscloud.iot_dpp.GroupIDExtractionParameters.GroupIDExpressionSource;
@@ -110,6 +113,7 @@ class IoTPipelinePluginTest {
 		
 		QueuesMonitoringPlugin plugin = new QueuesMonitoringPlugin();
 		plugin.init(Map.of("monitored_topic_prefix","all."+IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX,"local_activemq_url","tcp://localhost:"+port,"query_interval_seconds",""+QueuesMonitoringProcesQueryIntervalSeconds,"local_activemq_user","artemis","local_activemq_password","artemis"));
+		plugin.registered(null);
 		plugin.process.consumer = new QueuesMonitoringPluginConsumer() {
 
 			@Override
@@ -159,7 +163,7 @@ class IoTPipelinePluginTest {
 				messages.add(new MessageReceptionRecord(consumer.getClientId(), topic,
 						om.readValue(new String(message.getPayload()), TestMessage.class)));
 				LOGGER.info("Worker "+consumer.getClientId()+" messageArrived "+message.getId());
-				outputMessagesList.add(new Pair(outputTopic, message.getPayload()));
+				outputMessagesList.add(new Pair(outputTopic.replaceAll("\\.", "\\/"), message.getPayload()));
 			}
 
 			@Override
@@ -177,7 +181,9 @@ class IoTPipelinePluginTest {
 		// opts.setPassword("artemis".toCharArray());
 		opts.setCleanSession(false);
 		consumer.connect(opts);
-		consumer.subscribe(inputTopic, 2);
+		String subs = inputTopic.replaceAll("\\.", "\\/");
+		LOGGER.info("Subscribing to "+subs);
+		consumer.subscribe(subs, 2);
 		
 
 	        
@@ -228,6 +234,56 @@ class IoTPipelinePluginTest {
 	private Optional<QueuesMonitoringMessage> getLastMessageFromTopic(List<List<QueuesMonitoringMessage>> queuesMonitoringMessages, String topic)
 	{
 		return queuesMonitoringMessages.get(queuesMonitoringMessages.size()-1).stream().filter(m->m.queue.equals(topic)).findFirst();
+	}
+	
+	//@Test
+	void otherTest() throws JsonProcessingException
+	{
+		/*Map<String, IoTPipelineStepConfiguration> map = new HashMap<String, IoTPipelineStepConfiguration>();
+		map.put("stepA", new IoTPipelineStepConfiguration("src",
+				new GroupIDExtractionParameters(GroupIDExpressionSource.BODY_JSON, "fieldA")));
+		map.put("stepB", new IoTPipelineStepConfiguration("stepA",
+				new GroupIDExtractionParameters(GroupIDExpressionSource.BODY_JSON, "fieldB")));
+		
+		IoTPipelineConfigurator configuratorPlugin = new IoTPipelineConfigurator();
+		configuratorPlugin.init(
+				Map.of(IoTPipelineConfigurator.IOT_DPP_PIPELINE_STEPS_ENV_VAR, om.writeValueAsString(map),
+						"local_activemq_url", "tcp://localhost:6161",
+						"local_activemq_user","artemis","local_activemq_password","artemis"));
+				configuratorPlugin.registered(null);
+			*/		
+		
+		
+		
+		
+		QueuesMonitoringPlugin plugin = new QueuesMonitoringPlugin();
+		plugin.init(Map.of(
+				"monitored_topic_prefix","all.iotdpp.","local_activemq_url","tcp://localhost:6161","query_interval_seconds",""+QueuesMonitoringProcesQueryIntervalSeconds,"local_activemq_user","artemis","local_activemq_password","artemis"));
+		plugin.registered(null);
+		plugin.process.consumer = new QueuesMonitoringPluginConsumer() {
+
+			@Override
+			public void consume(List<QueuesMonitoringMessage> messages) {
+				LOGGER.info(messages.toString());
+				//result.add(messages);
+
+			}
+		};
+		
+		//config.getBrokerMessagePlugins().add(plugin);
+		
+		
+
+		
+		while(true)
+		{
+			try {
+				Thread.sleep(1000);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
 	}
 
 	/**
@@ -281,7 +337,7 @@ class IoTPipelinePluginTest {
 				MqttMessage message = new MqttMessage(om.writeValueAsString(payload).getBytes());
 				LOGGER.info("publish "+message.getId());
 				message.setQos(2);
-				publisher.publish(IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX+"src.output", message);
+				publisher.publish("iotdpp/src/output", message);
 				Thread.sleep(1);
 			}
 			

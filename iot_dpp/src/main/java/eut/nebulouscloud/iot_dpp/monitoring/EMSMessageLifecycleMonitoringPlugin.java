@@ -24,6 +24,7 @@ public class EMSMessageLifecycleMonitoringPlugin extends MessageLifecycleMonitor
 	
 	@Override
 	public void init(Map<String, String> properties) {
+		LOGGER.info("EMSMessageLifecycleMonitoringPlugin init");
 		String emsURL = Optional.ofNullable(properties.getOrDefault("ems_url", null))
 					.orElseThrow(() -> new IllegalStateException("ems_url parameter is not defined")); 
 		String emsUser = Optional.ofNullable(properties.getOrDefault("ems_user", null))

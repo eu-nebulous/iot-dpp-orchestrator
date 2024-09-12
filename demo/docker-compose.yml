@@ -1,7 +1,7 @@
 version: '3.7'      
 services:
   activemq:
-    image: apache/activemq-artemis:2.31.2-alpine
+    image: apache/activemq-artemis:2.37.0-alpine
     container_name: activemq
     restart: always
     ports:

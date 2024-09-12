@@ -27,9 +27,20 @@ public class QueuesMonitoringPlugin implements ActiveMQServerPlugin {
 	public QueuesMonitoringProcess process;
 
 	Logger LOGGER = LoggerFactory.getLogger(QueuesMonitoringPlugin.class);
+	
+	Map<String, String> properties;
 
 	@Override
 	public void init(Map<String, String> properties) {
+		this.properties = properties;
+	}
+	
+
+
+	@Override
+	public void registered(ActiveMQServer server) {
+		
+		LOGGER.info("QueuesMonitoringPlugin registered");
 		String monitoredTopicPrefix = Optional.ofNullable(properties.getOrDefault("monitored_topic_prefix", null))
 				.orElseThrow(() -> new IllegalStateException("monitored_topic_prefix parameter is not defined"));
 		int QUERY_INTERVAL_MS = Integer.parseInt(properties.getOrDefault("query_interval_seconds", "3")) * 1000;
@@ -40,10 +51,10 @@ public class QueuesMonitoringPlugin implements ActiveMQServerPlugin {
 		String activemqPassword = Optional.ofNullable(properties.getOrDefault("local_activemq_user", null))
 				.orElseThrow(() -> new IllegalStateException("local_activemq_password parameter is not defined"));
 		
-		process = new QueuesMonitoringProcess(monitoredTopicPrefix, QUERY_INTERVAL_MS, activemqURL, activemqUser,
+		process = new QueuesMonitoringProcess(server,monitoredTopicPrefix, QUERY_INTERVAL_MS, activemqURL, activemqUser,
 				activemqPassword, null);
 		new Thread(process).start();
-
+		
 	}
 
 

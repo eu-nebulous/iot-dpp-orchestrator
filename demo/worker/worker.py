@@ -17,12 +17,13 @@ mqtt_broker_address = os.getenv("mqtt_ip")
 mqtt_port = int(os.getenv("mqtt_port"))
 mqtt_user = os.getenv("mqtt_user")
 mqtt_password = os.getenv("mqtt_password")
-iotdpp_topic_prefix = "iotdpp."
+iotdpp_topic_prefix = "iotdpp/"
 previous_step_name = os.getenv("previous_step_name")
 step_name = os.getenv("step_name")
 worker_id = 1
 print(f"Starting step {step_name} worker {worker_id}")
 mqtt_client = mqtt.Client()
+mqtt_client.max_inflight_messages=1
 mqtt_client.username_pw_set(username=mqtt_user, password=mqtt_password)
 def map_value(old_value, old_min, old_max, new_min, new_max):
     return ( (old_value - old_min) / (old_max - old_min) ) * (new_max - new_min) + new_min
@@ -33,7 +34,7 @@ def on_connect(client, userdata, flags, rc):
         print(f"Failed to connect: RC:{rc}. loop_forever() will retry connection")
     else:
         print("Connected")
-        mqtt_topic = f"$share/all/{iotdpp_topic_prefix}{step_name}.input.{previous_step_name}"
+        mqtt_topic = f"$share/all/{iotdpp_topic_prefix}{step_name}/input/{previous_step_name}"
         #mqtt_topic = f"{iotdpp_topic_prefix}{step_name}.input.{previous_step_name}"
         #mqtt_topic ="iotdpp/#"
         print(f"Subscribing to {mqtt_topic}")
@@ -78,7 +79,7 @@ def process_messages():
             payload[step_name]["step_latency"] = step_latency
             payload[step_name]["accumulated_latency"] = accumulated_latency
             payload[step_name]["completion_timestamp"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
-            mqtt_client.publish(f"{iotdpp_topic_prefix}{step_name}.output",json.dumps(payload),2)    
+            mqtt_client.publish(f"{iotdpp_topic_prefix}{step_name}/output",json.dumps(payload),2)    
         except Exception as e:
             print("Error",e)
             print(traceback.format_exc())
