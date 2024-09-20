@@ -89,6 +89,37 @@
 		<button id="connect">Connect</button>
 	</div>
 	
+
+
+
+
+	<div>
+		<h2>Send JSON Payload</h2>
+		<label f>Step duration (seconds):</label>
+		<div>
+			<label for="step_A_duration_input">A: </label>
+			<input type="number" id="step_A_duration_input" value="2">
+		</div>
+		<div>
+			<label for="step_B_duration_input">B:</label>
+			<input type="number" id="step_B_duration_input" value="2">
+		</div>
+		<div>
+			<label for="step_C_duration_input">C:</label>
+			<input type="number" id="step_C_duration_input" value="2">
+		</div>
+		<div>
+			<label for="step_D_duration_input">D:</label>
+			<input type="number" id="step_D_duration_input" value="2">
+		</div>
+		<button id="send">Send</button>
+		<div>
+			<label for="auto_send_interval">Send interval (s):</label>
+			<input type="number" id="auto_send_interval" value="2">
+			<button id="auto_send">Start</button>
+		</div>
+	</div>
+
 	<h1>Metrics</h1>
 	<div id="metrics"></div>
 	<table id="messages">
@@ -138,34 +169,6 @@
 		</tbody>
 	</table>
 
-
-
-	<div>
-		<h2>Send JSON Payload</h2>
-		<label f>Step duration (seconds):</label>
-		<div>
-			<label for="step_A_duration_input">A: </label>
-			<input type="number" id="step_A_duration_input" value="2">
-		</div>
-		<div>
-			<label for="step_B_duration_input">B:</label>
-			<input type="number" id="step_B_duration_input" value="2">
-		</div>
-		<div>
-			<label for="step_C_duration_input">C:</label>
-			<input type="number" id="step_C_duration_input" value="2">
-		</div>
-		<div>
-			<label for="step_D_duration_input">D:</label>
-			<input type="number" id="step_D_duration_input" value="2">
-		</div>
-		<button id="send">Send</button>
-		<div>
-			<label for="auto_send_interval">Send interval (s):</label>
-			<input type="number" id="auto_send_interval" value="2">
-			<button id="auto_send">Start</button>
-		</div>
-	</div>
 
 	<script>
 		let client;
@@ -254,7 +257,7 @@
 			const payload = JSON.parse(message.payloadString);
 
 			var metric = /.*_(\w+)_SENSOR/g.exec(message.destinationName)[1];
-			var datasetOrder = ["MaxMessageAge","MessageCount","ConsumersCount"];
+			var datasetOrder = ["MessagesAddedFrequency","MaxMessageAge","MessageCount","ConsumersCount"];
 
 			if(datasetOrder.indexOf(metric) == -1)
 			{
@@ -364,7 +367,7 @@
 				$("#metrics").append("<hr>");
 				$("#metrics").append($div);
 
-				["MaxMessageAge","MessageCount","ConsumersCount"].forEach(metric=> {
+				["MessagesAddedFrequency","MaxMessageAge","MessageCount","ConsumersCount"].forEach(metric=> {
 
 					var $canvas = $("<canvas/>").prop({
                     width: 200,

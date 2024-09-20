@@ -36,8 +36,8 @@ public class EMSQueuesMonitoringPlugin extends QueuesMonitoringPlugin {
 		String activemqPassword = Optional.ofNullable(properties.getOrDefault("local_activemq_user", null))
 				.orElseThrow(() -> new IllegalStateException("local_activemq_password parameter is not defined"));
 
-		String emsURL = Optional.ofNullable(properties.getOrDefault("ems_url", null))
-				.orElseThrow(() -> new IllegalStateException("ems_url parameter is not defined"));
+		String emsURL = PluginPropertiesUtils.getEMSUrl(properties);
+		
 		String emsUser = Optional.ofNullable(properties.getOrDefault("ems_user", null))
 				.orElseThrow(() -> new IllegalStateException("ems_user parameter is not defined"));
 		String emsPassword = Optional.ofNullable(properties.getOrDefault("ems_password", null))

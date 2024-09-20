@@ -15,6 +15,7 @@ import org.apache.activemq.artemis.core.server.impl.AckReason;
 import org.apache.activemq.artemis.core.server.impl.ActiveMQServerImpl;
 import org.apache.activemq.artemis.core.server.impl.ServerSessionImpl;
 import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerMessagePlugin;
+import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerPlugin;
 import org.apache.activemq.artemis.core.transaction.Transaction;
 import org.apache.activemq.artemis.reader.MessageUtil;
 import org.slf4j.Logger;
@@ -35,9 +36,12 @@ import eut.nebulouscloud.iot_dpp.monitoring.events.MessagePublishedEvent;
  * can be used for understanding how IoT applications components on NebulOuS are
  * communicating.
  */
-public abstract class MessageLifecycleMonitoringPlugin implements ActiveMQServerMessagePlugin {
+public abstract class MessageLifecycleMonitoringPlugin implements ActiveMQServerPlugin {
 
 	Logger LOGGER = LoggerFactory.getLogger(MessageLifecycleMonitoringPlugin.class);
+	
+	public String monitoredTopicPrefix = "";
+	
 	protected ObjectMapper om = new ObjectMapper();
 	/**
 	 * Annotation used to identify the ActiveMQ cluster node that first received a
@@ -158,13 +162,12 @@ public abstract class MessageLifecycleMonitoringPlugin implements ActiveMQServer
 	public void afterSend(ServerSession session, Transaction tx, Message message, boolean direct,
 			boolean noAutoCreateQueue, RoutingStatus result) throws ActiveMQException {
 		try {
-			/**
-			 * Ignore activemq control messages
-			 */
-			if (message.getAddress().startsWith("$sys") || message.getAddress().startsWith("activemq"))
-				return;
 
 			
+			if (!message.getAddress().toString().matches(monitoredTopicPrefix)) {
+				LOGGER.trace("Ignoring "+message.getAddress().toString()+" Not matching with "+monitoredTopicPrefix);
+				return;
+			}	
 			/**
 			 * If message is already annotated with any of our custom annotations means that
 			 * the message is not being sent by a ActiveMQ external client (it is due to
@@ -185,7 +188,7 @@ public abstract class MessageLifecycleMonitoringPlugin implements ActiveMQServer
 				message.setAnnotation(ORIGINAL_MESSAGE_ID_ANNOTATION, message.getMessageID());
 			
 			MessageLifecycleEvent event = buildPublishEvent(message);
-			LOGGER.info("MessagePublishedMonitoringEvent: " + om.writeValueAsString(event));
+			LOGGER.debug("MessagePublishedMonitoringEvent: " + om.writeValueAsString(event));
 			notifyEvent(event);
 		} catch (Exception e) {
 			LOGGER.error("afterSend failed", e);
@@ -207,17 +210,16 @@ public abstract class MessageLifecycleMonitoringPlugin implements ActiveMQServer
 
 		try {
 
-			/**
-			 * Ignore activemq control messages
-			 */
-			if (reference.getQueue().getAddress().toString().startsWith("$sys")
-					|| reference.getQueue().getAddress().toString().startsWith("activemq"))
+
+			if (!reference.getQueue().getAddress().toString().matches(monitoredTopicPrefix)) {
+				LOGGER.trace("Ignoring "+reference.getQueue().getAddress().toString()+" Not matching with "+monitoredTopicPrefix);
 				return;
+			}
 
 			Message message = reference.getMessage();
 
 			MessageDeliveredEvent deliverEvent = buildDeliverEvent(message, consumer);
-			LOGGER.info("MessageDeliveredMonitoringEvent: " + om.writeValueAsString(deliverEvent));
+			LOGGER.debug("MessageDeliveredMonitoringEvent: " + om.writeValueAsString(deliverEvent));
 			notifyEvent(deliverEvent);
 
 		} catch (Exception e) {
@@ -231,18 +233,17 @@ public abstract class MessageLifecycleMonitoringPlugin implements ActiveMQServer
 
 		try {
 
-			/**
-			 * Ignore activemq control messages
-			 */
-			if (reference.getQueue().getAddress().toString().startsWith("$sys")
-					|| reference.getQueue().getAddress().toString().startsWith("activemq") || consumer == null)
+			if (!reference.getQueue().getAddress().toString().matches(monitoredTopicPrefix)) {
+				LOGGER.trace("Ignoring "+reference.getQueue().getAddress().toString()+" Not matching with "+monitoredTopicPrefix);
 				return;
+			}
+
 
 			Message message = reference.getMessage();
 			MessageDeliveredEvent deliverEvent = buildDeliverEvent(message, consumer);
 			MessageAcknowledgedEvent ackEvent = new MessageAcknowledgedEvent(deliverEvent,
 					new Date().getTime());
-			LOGGER.info("MessageAcknowledgedMonitoringEvent: " + om.writeValueAsString(ackEvent));
+			LOGGER.debug("MessageAcknowledgedMonitoringEvent: " + om.writeValueAsString(ackEvent));
 			notifyEvent(ackEvent);
 		} catch (Exception e) {
 			LOGGER.error("messageAcknowledged failed", e);

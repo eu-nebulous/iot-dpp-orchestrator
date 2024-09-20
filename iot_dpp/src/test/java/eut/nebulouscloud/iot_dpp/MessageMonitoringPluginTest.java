@@ -50,7 +50,9 @@ import eut.nebulouscloud.iot_dpp.monitoring.events.MessagePublishedEvent;
 class MessageMonitoringPluginTest {
 
 	static Logger LOGGER = LoggerFactory.getLogger(MessageMonitoringPluginTest.class);
-
+	
+	static String testTopic ="atopic";
+	
 	/**
 	 * Creates a local ActiveMQ server listening at localhost:61616. The server
 	 * accepts requests from any user. Configures the MessageMonitoringPluging and
@@ -100,6 +102,8 @@ class MessageMonitoringPluginTest {
 				events.add(event);
 			}
 		};
+		
+		plugin.monitoredTopicPrefix = testTopic+"";
 
 		config.getBrokerMessagePlugins().add(plugin);
 		EmbeddedActiveMQ server = new EmbeddedActiveMQ();
@@ -144,8 +148,7 @@ class MessageMonitoringPluginTest {
 
 			/**
 			 * Create a persistent subscription on a topic. Close the consumer afterwards.
-			 */
-			String testTopic = "test-topic";
+			 */		
 			IMqttClient consumer = new MqttClient("tcp://localhost:61616", "consumer");
 			consumer.setCallback(new MqttCallback() {
 
@@ -244,7 +247,6 @@ class MessageMonitoringPluginTest {
 			/**
 			 * Create a durable subscription on a topic. Close the receiver immediately.
 			 */
-			String address = "test-addr";
 			org.apache.qpid.protonj2.client.Connection receiverConnection;
 			Receiver receiver;
 			{
@@ -256,7 +258,7 @@ class MessageMonitoringPluginTest {
 						.deliveryMode(DeliveryMode.AT_LEAST_ONCE).autoAccept(false).autoSettle(false);
 				org.apache.qpid.protonj2.client.Session session = receiverConnection.openSession().openFuture().get();
 
-				receiver = session.openDurableReceiver(address, "my-durable-sub", options);
+				receiver = session.openDurableReceiver(testTopic, "my-durable-sub", options);
 				receiver.openFuture().get(10, TimeUnit.SECONDS);
 				/* receiver.close(); */
 				session.close();
@@ -277,7 +279,7 @@ class MessageMonitoringPluginTest {
 				org.apache.qpid.protonj2.client.SenderOptions options = new org.apache.qpid.protonj2.client.SenderOptions()
 						.deliveryMode(DeliveryMode.AT_MOST_ONCE);
 				org.apache.qpid.protonj2.client.Session session = senderConnection.openSession().openFuture().get();
-				sender = session.openSender(address, options);
+				sender = session.openSender(testTopic, options);
 			}
 
 			final org.apache.qpid.protonj2.client.Message<String> message = org.apache.qpid.protonj2.client.Message
@@ -303,7 +305,7 @@ class MessageMonitoringPluginTest {
 						.deliveryMode(DeliveryMode.AT_LEAST_ONCE).autoAccept(false);
 				org.apache.qpid.protonj2.client.Session session = receiverConnection.openSession().openFuture().get();
 
-				receiver = session.openDurableReceiver(address, "my-durable-sub", options);
+				receiver = session.openDurableReceiver(testTopic, "my-durable-sub", options);
 				receiver.openFuture().get(10, TimeUnit.SECONDS);
 			}
 
@@ -344,9 +346,9 @@ class MessageMonitoringPluginTest {
 			MessageAcknowledgedEvent ackEvent = (MessageAcknowledgedEvent) ackEventOptional.get();
 
 			assertEquals(sender.client().containerId(), publishEvent.clientId);
-			assertEquals(address, publishEvent.messageAddress);
+			assertEquals(testTopic, publishEvent.messageAddress);
 			assertEquals(receiver.client().containerId(), deliverEvent.clientId);
-			assertEquals(address, deliverEvent.messageAddress);
+			assertEquals(testTopic, deliverEvent.messageAddress);
 			assertEquals(publishEvent.messageAddress, deliverEvent.publishAddress);
 			assertEquals(publishEvent.clientId, deliverEvent.publishClientId);
 			assertEquals(publishEvent.messageId, deliverEvent.messageId);
@@ -393,7 +395,6 @@ class MessageMonitoringPluginTest {
 			/**
 			 * Create a persistent subscription on a topic. Close the consumer afterwards.
 			 */
-			String testTopic = "test/atopic";
 			IMqttClient consumerBrokerB = new MqttClient("tcp://localhost:" + brokerBPort, "consumer");
 			MqttConnectOptions opts = new MqttConnectOptions();
 			opts.setCleanSession(true);
