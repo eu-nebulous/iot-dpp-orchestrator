@@ -136,6 +136,13 @@
         </exclusion>
       </exclusions>
     </dependency>
+    <dependency>
+      <groupId>net.ser1</groupId>
+      <artifactId>gozirra-client</artifactId>
+      <version>0.4.1</version>
+      <scope>system</scope>
+      <systemPath>${project.basedir}/libs/gozirra-client-0.4.1.jar</systemPath>
+    </dependency>
   </dependencies>
   <distributionManagement>
     <repository>

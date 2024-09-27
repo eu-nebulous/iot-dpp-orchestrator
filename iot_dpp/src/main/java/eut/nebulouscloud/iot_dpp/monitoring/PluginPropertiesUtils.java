@@ -9,7 +9,7 @@ public class PluginPropertiesUtils {
 		String emsHost = properties.getOrDefault("ems_host", null);
 		String emsPort = properties.getOrDefault("ems_port", null);		
 		String emsURL =	properties.getOrDefault("ems_url", null);
-		String emsProtocol =	properties.getOrDefault("ems_protocol", null);
+	
 		
 		
 		if((emsHost == null || emsHost.isBlank())&& (emsURL == null || emsURL.isBlank())) 
@@ -22,9 +22,7 @@ public class PluginPropertiesUtils {
 			{
 				throw new IllegalStateException("ems_url is empty. You should provide ems_port");
 			}
-			emsProtocol = emsProtocol !=null?emsProtocol:"tcp";
-			
-			emsURL = emsProtocol+"://"+emsHost+":"+emsPort;
+			emsURL = emsHost+":"+emsPort;
 		}
 		
 		return emsURL;
