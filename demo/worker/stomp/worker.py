@@ -33,8 +33,14 @@ def map_value(old_value, old_min, old_max, new_min, new_max):
     return ((old_value - old_min) / (old_max - old_min)) * (new_max - new_min) + new_min
 
 class MyListener(stomp.ConnectionListener):
+
+    def on_disconnect(self, client, userdata, rc):
+         print(f"on_disconnect: {rc}")
+         sys.exit(1)
+    
     def on_error(self, frame):
         print(f"Error: {frame.body}")
+        sys.exit(1)
 
     def on_message(self, frame):
         try:
@@ -70,7 +76,8 @@ class MyListener(stomp.ConnectionListener):
             payload[step_name]["completion_timestamp"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
             
             # Publish to the STOMP broker
-            conn.send(body=json.dumps(payload), destination=f"/queue/{iotdpp_topic_prefix}{step_name}.output")
+            #https://activemq.apache.org/components/artemis/documentation/latest/stomp.html#sending
+            conn.send(body=json.dumps(payload), destination=f"{iotdpp_topic_prefix}{step_name}.output",headers={"destination-type":"MULTICAST"})
         except Exception as e:
             print("Error", e)
             print(traceback.format_exc())
@@ -93,17 +100,13 @@ conn.connect(stomp_user, stomp_password, wait=True)
 
 
 # Subscribe to the topic
-stomp_topic = f"{iotdpp_topic_prefix}{step_name}.input.{previous_step_name}"
+stomp_topic = f"all.{iotdpp_topic_prefix}{step_name}.input.{previous_step_name}"
 print(f"Subscribing to {stomp_topic}")
-#conn.subscribe(destination=stomp_topic, id=worker_id, ack='client')
-conn.subscribe(destination="all.iotdpp.stepA.input.src",id=worker_id+"b",ack="client",headers={"subscription-type":"ANYCAST"})
+https://activemq.apache.org/components/artemis/documentation/latest/stomp.html#subscribing
+conn.subscribe(destination=stomp_topic,id=worker_id+"b",ack="client",headers={"subscription-type":"ANYCAST"})
 
 
 print("Done")
 #https://activemq.apache.org/components/artemis/documentation/latest/stomp.html#stomp
-# Wait forever to keep the connection alive
 while True:    
-    #conn.send("iotdpp.stepA.input.src",body="",headers={"destination-type":"MULTICAST"})
-    #conn.send("iotdpp.src.output",body="",headers={"destination-type":"MULTICAST"})    	
-    #print("Send")
     time.sleep(4)

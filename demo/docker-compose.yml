@@ -18,65 +18,72 @@ services:
         max-file: "2" 
     volumes:
         - ./broker/etc:/var/lib/artemis-instance/etc-override
-        #- ./broker/etc/broker.xml:/var/lib/artemis-instance/etc/broker.xml
-        #- ./broker/etc:/var/lib/artemis-instance/etc
         - ./broker/lib:/var/lib/artemis-instance/lib
     environment:
-        - ARTEMIS_MAX_MEMORY=1024M
+        ARTEMIS_MAX_MEMORY: 1024M        
+        IOT_PIPELINE_STEPS: "{&quot;stepA&quot;: {&quot;inputStream&quot;: &quot;src&quot;,&quot;groupingKeyAccessor&quot;: {&quot;source&quot;:&quot;BODY_JSON&quot;,&quot;expression&quot;: &quot;fieldA&quot;}},&quot;stepB&quot;: {&quot;inputStream&quot;:&quot;stepA&quot;,&quot;groupingKeyAccessor&quot;: {&quot;source&quot;: &quot;BODY_JSON&quot;,&quot;expression&quot;:&quot;fieldB&quot;}},&quot;stepC&quot;: {&quot;inputStream&quot;: &quot;stepB&quot;,&quot;groupingKeyAccessor&quot;:{&quot;source&quot;: &quot;BODY_JSON&quot;,&quot;expression&quot;: &quot;fieldC&quot;}},&quot;stepD&quot;:{&quot;inputStream&quot;: &quot;stepA&quot;,&quot;groupingKeyAccessor&quot;: {&quot;source&quot;: &quot;BODY_JSON&quot;,&quot;expression&quot;: &quot;fieldD&quot;}}}"
         
   step_a:
     image: ems-nebulous-iot/worker
     build: 
-      context: ./worker
+      context: "./worker/${CLIENT_VERSION}"
       dockerfile: ./Dockerfile
     restart: always
+    depends_on:
+      - activemq
     environment:
-      - mqtt_ip=activemq
-      - mqtt_port=1883
+      - ${CLIENT_VERSION}_ip=activemq
+      - ${CLIENT_VERSION}_port=61616
       - step_name=stepA
       - previous_step_name=src      
-      - mqtt_user=artemis
-      - mqtt_password=artemis
+      - ${CLIENT_VERSION}_user=artemis
+      - ${CLIENT_VERSION}_password=artemis
       
   step_b:
     image: ems-nebulous-iot/worker
     build: 
-      context: ./worker
+      context: "./worker/${CLIENT_VERSION}"
       dockerfile: ./Dockerfile
+    depends_on:
+      - activemq
     restart: always
     environment:
-      - mqtt_ip=activemq
-      - mqtt_port=1883
+      - ${CLIENT_VERSION}_ip=activemq
+      - ${CLIENT_VERSION}_port=61616
       - step_name=stepB
       - previous_step_name=stepA      
-      - mqtt_user=artemis
-      - mqtt_password=artemis
+      - ${CLIENT_VERSION}_user=artemis
+      - ${CLIENT_VERSION}_password=artemis
       
   step_c:
     image: ems-nebulous-iot/worker
     build: 
-      context: ./worker
+      context: "./worker/${CLIENT_VERSION}"
       dockerfile: ./Dockerfile
+    depends_on:
+      - activemq
     restart: always
     environment:
-      - mqtt_ip=activemq
-      - mqtt_port=1883
+      - ${CLIENT_VERSION}_ip=activemq
+      - ${CLIENT_VERSION}_port=61616
       - step_name=stepC
       - previous_step_name=stepB
-      - mqtt_user=artemis
-      - mqtt_password=artemis
+      - ${CLIENT_VERSION}_user=artemis
+      - ${CLIENT_VERSION}_password=artemis
       
       
   step_d:
     image: ems-nebulous-iot/worker
     build: 
-      context: ./worker
+      context: "./worker/${CLIENT_VERSION}"
       dockerfile: ./Dockerfile
+    depends_on:
+      - activemq
     restart: always
     environment:
-      - mqtt_ip=activemq
-      - mqtt_port=1883
+      - ${CLIENT_VERSION}_ip=activemq
+      - ${CLIENT_VERSION}_port=61616
       - step_name=stepD
       - previous_step_name=stepA
-      - mqtt_user=artemis
-      - mqtt_password=artemis
+      - ${CLIENT_VERSION}_user=artemis
+      - ${CLIENT_VERSION}_password=artemis

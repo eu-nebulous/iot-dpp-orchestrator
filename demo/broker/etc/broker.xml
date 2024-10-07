@@ -280,7 +280,7 @@ under the License.
 
 	<broker-plugins>
 	   <broker-plugin class-name="eut.nebulouscloud.iot_dpp.pipeline.IoTPipelineConfigurator">
-	 	  <property key="IOT_DPP_PIPELINE_STEPS" value="{&quot;stepA&quot;: {&quot;inputStream&quot;: &quot;src&quot;,&quot;groupingKeyAccessor&quot;: {&quot;source&quot;: &quot;BODY_JSON&quot;,&quot;expression&quot;: &quot;fieldA&quot;}},&quot;stepB&quot;: {&quot;inputStream&quot;: &quot;stepA&quot;,&quot;groupingKeyAccessor&quot;: {&quot;source&quot;: &quot;BODY_JSON&quot;,&quot;expression&quot;: &quot;fieldB&quot;}},&quot;stepC&quot;: {&quot;inputStream&quot;: &quot;stepB&quot;,&quot;groupingKeyAccessor&quot;: {&quot;source&quot;: &quot;BODY_JSON&quot;,&quot;expression&quot;: &quot;fieldC&quot;}},&quot;stepD&quot;: {&quot;inputStream&quot;: &quot;stepA&quot;,&quot;groupingKeyAccessor&quot;: {&quot;source&quot;: &quot;BODY_JSON&quot;,&quot;expression&quot;: &quot;fieldD&quot;}}}" />
+	 	  <property key="IOT_DPP_PIPELINE_STEPS" value="${IOT_PIPELINE_STEPS}" />
 		  <property key="local_activemq_url" value="tcp://localhost:61616" />
 		  <property key="local_activemq_user" value="artemis" />
 		  <property key="local_activemq_password" value="artemis" />		  
@@ -295,7 +295,8 @@ under the License.
 	   <property key="local_activemq_user" value="artemis"/>
 	   <property key="local_activemq_password" value="artemis"/>
 	   
-	   <property key="ems_url" value="tcp://localhost:61616"/>
+	   <property key="ems_host" value="localhost"/>
+	   <property key="ems_port" value="61616"/>	   
 	   <property key="ems_user" value="artemis"/>
 	   <property key="ems_password" value="artemis"/>
 	   
@@ -310,7 +311,8 @@ under the License.
 	   <property key="local_activemq_user" value="artemis"/>
 	   <property key="local_activemq_password" value="artemis"/>
 	   
-	   <property key="ems_url" value="tcp://localhost:61616"/>
+	   <property key="ems_host" value="localhost"/>
+	   <property key="ems_port" value="61616"/>	  
 	   <property key="ems_user" value="artemis"/>
 	   <property key="ems_password" value="artemis"/>
 	   
