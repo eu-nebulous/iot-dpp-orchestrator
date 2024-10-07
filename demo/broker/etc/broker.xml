@@ -214,7 +214,8 @@ under the License.
             <auto-create-queues>true</auto-create-queues>
             <auto-create-addresses>true</auto-create-addresses>
          </address-setting>
-         <!--default for catch all-->
+		 
+		 
          <address-setting match="#">
             <dead-letter-address>DLQ</dead-letter-address>
             <expiry-address>ExpiryQueue</expiry-address>
@@ -275,10 +276,11 @@ under the License.
          </broker-plugin>
       </broker-plugins>
       -->
+
+
 	<broker-plugins>
 	   <broker-plugin class-name="eut.nebulouscloud.iot_dpp.pipeline.IoTPipelineConfigurator">
-	   <!--{"stepB":{"inputStream":"stepA","groupingKeyAccessor":{"source":"BODY_JSON","expression":"fieldB"}},"stepA":{"inputStream":"src","groupingKeyAccessor":{"source":"BODY_JSON","expression":"fieldA"}}}-->
-		  <property key="IOT_DPP_PIPELINE_STEPS" value="{&quot;stepA&quot;: {&quot;inputStream&quot;: &quot;src&quot;,&quot;groupingKeyAccessor&quot;: {&quot;source&quot;: &quot;BODY_JSON&quot;,&quot;expression&quot;: &quot;fieldA&quot;}},&quot;stepB&quot;: {&quot;inputStream&quot;: &quot;stepA&quot;,&quot;groupingKeyAccessor&quot;: {&quot;source&quot;: &quot;BODY_JSON&quot;,&quot;expression&quot;: &quot;fieldB&quot;}},&quot;stepC&quot;: {&quot;inputStream&quot;: &quot;stepB&quot;,&quot;groupingKeyAccessor&quot;: {&quot;source&quot;: &quot;BODY_JSON&quot;,&quot;expression&quot;: &quot;fieldC&quot;}},&quot;stepD&quot;: {&quot;inputStream&quot;: &quot;stepA&quot;,&quot;groupingKeyAccessor&quot;: {&quot;source&quot;: &quot;BODY_JSON&quot;,&quot;expression&quot;: &quot;fieldD&quot;}}}" />
+	 	  <property key="IOT_DPP_PIPELINE_STEPS" value="${IOT_PIPELINE_STEPS}" />
 		  <property key="local_activemq_url" value="tcp://localhost:61616" />
 		  <property key="local_activemq_user" value="artemis" />
 		  <property key="local_activemq_password" value="artemis" />		  
@@ -293,14 +295,33 @@ under the License.
 	   <property key="local_activemq_user" value="artemis"/>
 	   <property key="local_activemq_password" value="artemis"/>
 	   
-	   <property key="ems_url" value="tcp://localhost:61616"/>
+	   <property key="ems_host" value="localhost"/>
+	   <property key="ems_port" value="61616"/>	   
 	   <property key="ems_user" value="artemis"/>
 	   <property key="ems_password" value="artemis"/>
 	   
 	   </broker-plugin>
-	</broker-plugins>
-	
 	   
+
+	<broker-plugin class-name="eut.nebulouscloud.iot_dpp.monitoring.EMSMessageLifecycleMonitoringPlugin">
+	   <property key="monitored_topic_prefix" value="[all\.]?iotdpp"/>
+	   <property key="reporting_topic_prefix" value="monitoring."/>
+	   <property key="local_activemq_url" value="tcp://localhost:61616"/>
+	   <property key="query_interval_seconds" value="10"/>
+	   <property key="local_activemq_user" value="artemis"/>
+	   <property key="local_activemq_password" value="artemis"/>
+	   
+	   <property key="ems_host" value="localhost"/>
+	   <property key="ems_port" value="61616"/>	  
+	   <property key="ems_user" value="artemis"/>
+	   <property key="ems_password" value="artemis"/>
+	   
+	   </broker-plugin>   
+	   
+	   
+	   
+	</broker-plugins>
+
 	   
    </core>
 </configuration>

@@ -1,33 +1,29 @@
 package eut.nebulouscloud.iot_dpp.monitoring;
 
-import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 
-import org.apache.activemq.artemis.api.core.Message;
-import org.apache.activemq.artemis.api.core.SimpleString;
-import org.apache.activemq.artemis.api.core.client.ActiveMQClient;
-import org.apache.activemq.artemis.api.core.client.ClientMessage;
-import org.apache.activemq.artemis.api.core.client.ClientProducer;
-import org.apache.activemq.artemis.api.core.client.ClientSession;
-import org.apache.activemq.artemis.api.core.client.ClientSessionFactory;
-import org.apache.activemq.artemis.api.core.client.ServerLocator;
+import javax.jms.MessageProducer;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import net.ser1.stomp.Client;
+import net.ser1.stomp.Listener;
+
 public class EventManagementSystemPublisher {
 	static Logger LOGGER = LoggerFactory.getLogger(EventManagementSystemPublisher.class);
 
-	private static EventManagementSystemPublisher instance;
+
+	
 	protected ObjectMapper om = new ObjectMapper();
 	private final String emsUser;
 	private final String emsPassword;
 	private final String emsURL;
 	private final String reportingTopicPrefix;
-	ClientSession session;
-	Map<String, ClientProducer> producers;
+	Map<String, MessageProducer> producers;
+	Client client;
 
 	public EventManagementSystemPublisher(String emsURL, String emsUser, String emsPassword, String reportingTopicPrefix) {
 		this.emsUser = emsUser;
@@ -37,42 +33,41 @@ public class EventManagementSystemPublisher {
 		connect();
 	}
 	
-	/*public static void init(String emsURL, String emsUser, String emsPassword) {
-		
-		if (instance == null) {
-			LOGGER.info("Init EventManagementSystemPublisher");
-			instance = new EventManagementSystemPublisher(emsURL,emsUser,emsPassword);
-		}else
-		{
-			LOGGER.warn("EventManagementSystemPublisher is already initialized. No need to initialize it again.");
-		}
-	}*/
 
 	private void connect() {
 		try {
-			ServerLocator serverLocator = ActiveMQClient.createServerLocator(emsURL);
-			ClientSessionFactory factory = serverLocator.createSessionFactory();
-			session = factory.createSession(emsUser, emsPassword, true, true, true, false, 1);
-			producers = new HashMap<String, ClientProducer>();
+			
+			if(!emsURL.contains(":"))
+			{
+				LOGGER.error("Invalid EMS url. Must be of the form 'host':'port'",emsURL);
+				return;
+				
+			}
+			String emsHost = emsURL.split(":")[0];
+			Integer emsPort = Integer.parseInt(emsURL.split(":")[1]);
+			
+			
+			client = new Client( emsHost, emsPort, emsUser, emsPassword );
+			client.addErrorListener( new Listener() {
+				    public void message( Map header, String message ) {
+				    	System.out.println(header);
+				    	System.out.println(message);
+				    }
+				  });
 		} catch (Exception ex) {
 			LOGGER.error("Can't setup EMS publisher", ex);
 		}
 	}
 
 	public void _send(String topicName, double value, long timestamp) {
-		if (session == null || session.isClosed()) {
+		if (client == null || client.isClosed() || client.isConnected()) {
 			connect();
 		}
 		String topic = reportingTopicPrefix+topicName;
 		try {
-			String payload = om.writeValueAsString(Map.of("metricValue", value, "level", 1, "timestamp", timestamp));
-			if (!producers.containsKey(topic)) {
-				producers.put(topic, session.createProducer());
-			}
-			ClientMessage message = session.createMessage(Message.TEXT_TYPE, false);
-			message.getBodyBuffer().writeNullableSimpleString(SimpleString.toSimpleString(payload));
+			String payload = om.writeValueAsString(Map.of("metricValue", value, "level", 1, "timestamp", timestamp));		
 			LOGGER.info(String.format("Publish metric %s -> %s", topic, payload));
-			producers.get(topic).send(topic, message);
+			client.send(topic, payload);
 		} catch (Exception ex) {
 			LOGGER.error("Can't send message to EMS", ex);
 		}

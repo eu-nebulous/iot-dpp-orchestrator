@@ -95,6 +95,9 @@ class QueuesMonitoringPluginTest {
 		QueuesMonitoringPlugin plugin = new QueuesMonitoringPlugin();
 		plugin.init(Map.of(
 				"monitored_topic_prefix","consumer.neb","local_activemq_url","tcp://localhost:"+port,"query_interval_seconds",""+QueuesMonitoringProcesQueryIntervalSeconds,"local_activemq_user","artemis","local_activemq_password","artemis"));
+		
+		config.getBrokerMessagePlugins().add(plugin);
+		plugin.registered(null);
 		plugin.process.consumer = new QueuesMonitoringPluginConsumer() {
 
 			@Override
@@ -103,7 +106,6 @@ class QueuesMonitoringPluginTest {
 
 			}
 		};
-		config.getBrokerMessagePlugins().add(plugin);
 		/*EMSQueuesMonitoringPlugin plugin = new EMSQueuesMonitoringPlugin();
 		plugin.init(Map.of("monitored_topic_prefix",".neb","local_activemq_url","tcp://localhost:"+port,"query_interval_seconds",""+QueuesMonitoringProcesQueryIntervalSeconds));
 		*/

@@ -31,6 +31,8 @@ public class EMSQueuesMonitoringPluginConsumer implements QueuesMonitoringPlugin
 			metrics.put("GroupCount", (double)message.groupCount);
 			metrics.put("MaxMessageAge", (double)message.maxMessageAge);
 			metrics.put("MessageCount", (double)message.messageCount);
+			metrics.put("MessagesAdded", (double)message.messagesAdded);
+			metrics.put("MessagesAddedFrequency", (double)message.messagesAddedFrequency);
 			long timestamp = new Date().getTime();
 			for(String metric : metrics.keySet())
 			{
