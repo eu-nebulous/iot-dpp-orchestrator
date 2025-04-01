@@ -24,7 +24,7 @@ public class MessageDeliveredEvent extends MessageLifecycleEvent {
 	/**
 	 * Addres where the message was originally published
 	 */
-	public final String publishAddress;
+	public final String publishQueue;
 
 	/**
 	 * 
@@ -37,12 +37,12 @@ public class MessageDeliveredEvent extends MessageLifecycleEvent {
 	 */
 	public final long publishTimestamp;
 
-	public MessageDeliveredEvent(MessagePublishedEvent publishEvent, String address, String node,
+	public MessageDeliveredEvent(MessagePublishedEvent publishEvent, String messageQueue, String node,
 			String clientId, long timestamp) {
-		super(publishEvent.messageId, address, publishEvent.messageSize, timestamp);
+		super(publishEvent.messageId, messageQueue, publishEvent.messageSize, timestamp);
 		this.node = node;
 		this.clientId = clientId;
-		this.publishAddress = publishEvent.messageAddress;
+		this.publishQueue = publishEvent.messageQueue;
 		this.publishNode = publishEvent.node;
 		this.publishClientId = publishEvent.clientId;
 		this.publishTimestamp = publishEvent.timestamp;

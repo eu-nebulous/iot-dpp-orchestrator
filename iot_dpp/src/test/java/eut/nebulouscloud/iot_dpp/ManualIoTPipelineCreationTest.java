@@ -90,7 +90,7 @@ class ManualIoTPipelineCreationTest {
 		config.setPagingDirectory(foldersRoot + "/paging");
 		config.addConnectorConfiguration("serverAt" + port + "Connector", "tcp://localhost:" + port);
 		config.addAcceptorConfiguration("netty", "tcp://localhost:" + port);
-
+		config.addAcceptorConfiguration("vm", "vm://0");
 		/*
 		 * CoreAddressConfiguration address = new CoreAddressConfiguration();
 		 * QueueConfiguration queueC = new QueueConfiguration();
@@ -158,6 +158,10 @@ class ManualIoTPipelineCreationTest {
 		});
 		server.setConfiguration(config);
 		server.start();
+		while (!server.getActiveMQServer().isActive()) {
+		    System.out.println("Waiting for server to start...");
+		    Thread.sleep(500);
+		}
 		return server;
 	}
 

@@ -76,6 +76,7 @@ class MessageMonitoringPluginTest {
 		config.setPagingDirectory(foldersRoot + "/paging");
 		config.addConnectorConfiguration("serverAt" + port + "Connector", "tcp://localhost:" + port);
 		config.addAcceptorConfiguration("netty", "tcp://localhost:" + port);
+		config.addAcceptorConfiguration("vm", "vm://0");
 		// config.setPersistenceEnabled(true);		
 		
 		
@@ -103,7 +104,7 @@ class MessageMonitoringPluginTest {
 			}
 		};
 		
-		plugin.monitoredTopicPrefix = testTopic+"";
+		plugin.monitoredQueueRegex = testTopic+"";
 
 		config.getBrokerMessagePlugins().add(plugin);
 		EmbeddedActiveMQ server = new EmbeddedActiveMQ();
@@ -120,6 +121,10 @@ class MessageMonitoringPluginTest {
 		});
 		server.setConfiguration(config);
 		server.start();
+		while (!server.getActiveMQServer().isActive()) {
+		    System.out.println("Waiting for server to start...");
+		    Thread.sleep(500);
+		}
 		return server;
 	}
 
@@ -208,7 +213,7 @@ class MessageMonitoringPluginTest {
 			assertEquals(true, ackEventOptional.isPresent());
 			MessageAcknowledgedEvent ackEvent = (MessageAcknowledgedEvent) ackEventOptional.get();
 
-			assertEquals(publishEvent.messageAddress, deliverEvent.publishAddress);
+			assertEquals(publishEvent.messageQueue, deliverEvent.publishQueue);
 			assertEquals(publishEvent.clientId, deliverEvent.publishClientId);
 			assertEquals(publishEvent.messageId, deliverEvent.messageId);
 			// assertEquals(publishEvent.messageSize, deliverEvent.messageSize);
@@ -346,10 +351,10 @@ class MessageMonitoringPluginTest {
 			MessageAcknowledgedEvent ackEvent = (MessageAcknowledgedEvent) ackEventOptional.get();
 
 			assertEquals(sender.client().containerId(), publishEvent.clientId);
-			assertEquals(testTopic, publishEvent.messageAddress);
+			assertEquals(testTopic, publishEvent.messageQueue);
 			assertEquals(receiver.client().containerId(), deliverEvent.clientId);
-			assertEquals(testTopic, deliverEvent.messageAddress);
-			assertEquals(publishEvent.messageAddress, deliverEvent.publishAddress);
+			assertEquals(testTopic, deliverEvent.messageQueue);
+			assertEquals(publishEvent.messageQueue, deliverEvent.publishQueue);
 			assertEquals(publishEvent.clientId, deliverEvent.publishClientId);
 			assertEquals(publishEvent.messageId, deliverEvent.messageId);
 			// assertEquals(publishEvent.messageSize, deliverEvent.messageSize);
@@ -450,7 +455,7 @@ class MessageMonitoringPluginTest {
 			assertEquals(true, ackEventOptional.isPresent());
 			MessageAcknowledgedEvent ackEvent = (MessageAcknowledgedEvent) ackEventOptional.get();
 
-			assertEquals(publishEvent.messageAddress, deliverEvent.publishAddress);
+			assertEquals(publishEvent.messageQueue, deliverEvent.publishQueue);
 			assertEquals(publishEvent.clientId, deliverEvent.publishClientId);
 			assertEquals(publishEvent.messageId, deliverEvent.messageId);
 			// assertEquals(publishEvent.messageSize, deliverEvent.messageSize);

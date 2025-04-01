@@ -15,8 +15,8 @@ public class MessagePublishedEvent extends MessageLifecycleEvent{
 	 */
 	public final String clientId;
 
-	public MessagePublishedEvent(long messageId, String address, String node, String clientId, long size,long timestamp) {		
-		super(messageId,address,size,timestamp);
+	public MessagePublishedEvent(long messageId, String messageQueue, String node, String clientId, long size,long timestamp) {		
+		super(messageId,messageQueue,size,timestamp);
 		this.node = node;
 		this.clientId = clientId;
 	}

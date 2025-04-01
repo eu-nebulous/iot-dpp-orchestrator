@@ -41,12 +41,6 @@ The following parameters are needed for the plugin:
 
 - query_interval_seconds (defaults to 3)
 
-- local_activemq_url (defaults to "tcp://localhost:61616")
-
-- local_activemq_user (defaults to "artemis")
-
-- local_activemq_password (defaults to "artemis")
-
 - ems_url (defaults to "tcp://localhost:61616")
 
 - ems_user (defaults to "aaa")

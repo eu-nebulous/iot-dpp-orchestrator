@@ -50,10 +50,7 @@ public class IoTPipelineConfigurator implements ActiveMQServerPlugin {
 	InitialContext initialContext = null;
 	QueueSession session = null;
 	Queue managementQueue;
-	QueueRequestor requestor;
-	String activemqURL;
-	String activemqUser;
-	String activemqPassword;
+	QueueRequestor requestor;	
 	public final static String IOT_DPP_PIPELINE_STEPS_ENV_VAR = "IOT_DPP_PIPELINE_STEPS";
 	Map<String, IoTPipelineStepConfiguration> pipelineSteps;
 
@@ -63,17 +60,17 @@ public class IoTPipelineConfigurator implements ActiveMQServerPlugin {
 			this.server = server;
 		}
 
-		private void connect(String activemqURL, String activemqUser, String activemqPassword) {
+		private void connect() {
 			System.setProperty("java.naming.factory.initial",
 					"org.apache.activemq.artemis.jndi.ActiveMQInitialContextFactory");
 			int maxTryCount = 3;
 			for (int i = 0; i < maxTryCount; i++) {
 				try {
 					initialContext = new InitialContext();
-					LOGGER.info("Connecting to {}", activemqURL);
-					connectionFactory = new ActiveMQConnectionFactory(activemqURL);
-					connection = connectionFactory.createQueueConnection(activemqUser, activemqPassword);
-					session = connection.createQueueSession(false, Session.AUTO_ACKNOWLEDGE);
+					LOGGER.info("Connecting to broker");
+					connectionFactory = new ActiveMQConnectionFactory( "vm://0");
+			        connection = connectionFactory.createQueueConnection();
+			        session = connection.createQueueSession(false, Session.AUTO_ACKNOWLEDGE);
 					managementQueue = session.createQueue("activemq.management");
 					connection.start();
 					requestor = new QueueRequestor(session, managementQueue);
@@ -460,7 +457,7 @@ public class IoTPipelineConfigurator implements ActiveMQServerPlugin {
 			
 			
 			LOGGER.info("IoTPipelineConfigurator registered");
-			connect(activemqURL, activemqUser, activemqPassword);
+			connect();
 			configAddressSpace();
 			createAddresses();
 			createQueues();
@@ -490,12 +487,6 @@ public class IoTPipelineConfigurator implements ActiveMQServerPlugin {
 	@Override
 	public void init(Map<String, String> properties) {
 		LOGGER.info("IoTPipelineConfigurator init");
-		activemqURL = properties.getOrDefault("local_activemq_url", "tcp://localhost:61616");
-		activemqUser = Optional.ofNullable(properties.getOrDefault("local_activemq_user", null))
-				.orElseThrow(() -> new IllegalStateException("local_activemq_user parameter is not defined"));
-		activemqPassword = Optional.ofNullable(properties.getOrDefault("local_activemq_user", null))
-				.orElseThrow(() -> new IllegalStateException("local_activemq_password parameter is not defined"));
-
 		String pipelineStepsString = Optional.ofNullable(properties.getOrDefault(IOT_DPP_PIPELINE_STEPS_ENV_VAR, null))
 				.orElseThrow(
 						() -> new IllegalStateException(IOT_DPP_PIPELINE_STEPS_ENV_VAR + " parameter is not defined"));
@@ -515,25 +506,6 @@ public class IoTPipelineConfigurator implements ActiveMQServerPlugin {
 	public void registered(ActiveMQServer server) {
 		LOGGER.info("IoTPipelineConfigurator registered");
 		new Thread(new IoTPipelineConfiguratorProcess(server)).start();		
-		// As seen in QueuesMonitoringProcess
-
-		// Message m = session.createMessage();
-		// createDivert​(String name, String routingName, String address, String
-		// forwardingAddress, boolean exclusive, String filterString, String
-		// transformerClassName)
-
-		// JMSManagementHelper.putOperationInvocation(m, ResourceNames.BROKER,
-		// "getQueueNames");
-
-		/*
-		 * DivertConfiguration divertAtoC = new DivertConfiguration();
-		 * divertAtoC.setName("divertAtoC"); divertAtoC.setAddress("neb.step_A_output");
-		 * divertAtoC.setExclusive(false);
-		 * divertAtoC.setForwardingAddress("neb.step_C_input");
-		 * divertAtoC.setTransformerConfiguration(divertTransformerConfig);
-		 * 
-		 * server.setProperties(null);
-		 */
 	}
 
 }

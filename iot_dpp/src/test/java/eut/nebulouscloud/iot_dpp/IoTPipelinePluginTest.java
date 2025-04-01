@@ -86,7 +86,7 @@ class IoTPipelinePluginTest {
 		config.setPagingDirectory(foldersRoot + "/paging");
 		config.addConnectorConfiguration("serverAt" + port + "Connector", "tcp://localhost:" + port);
 		config.addAcceptorConfiguration("netty", "tcp://localhost:" + port);
-		
+		config.addAcceptorConfiguration("vm", "vm://0");
 		
 
 		ClusterConnectionConfiguration cluster = new ClusterConnectionConfiguration();
@@ -106,13 +106,11 @@ class IoTPipelinePluginTest {
 
 		IoTPipelineConfigurator configuratorPlugin = new IoTPipelineConfigurator();
 		configuratorPlugin.init(
-				Map.of(IoTPipelineConfigurator.IOT_DPP_PIPELINE_STEPS_ENV_VAR, om.writeValueAsString(pipelineSteps),
-						"local_activemq_url", "tcp://localhost:"+port,
-						"local_activemq_user","artemis","local_activemq_password","artemis"));
+				Map.of(IoTPipelineConfigurator.IOT_DPP_PIPELINE_STEPS_ENV_VAR, om.writeValueAsString(pipelineSteps)));//falta port
 		config.getBrokerPlugins().add(configuratorPlugin);
 		
 		QueuesMonitoringPlugin plugin = new QueuesMonitoringPlugin();
-		plugin.init(Map.of("monitored_topic_prefix","all."+IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX,"local_activemq_url","tcp://localhost:"+port,"query_interval_seconds",""+QueuesMonitoringProcesQueryIntervalSeconds,"local_activemq_user","artemis","local_activemq_password","artemis"));
+		plugin.init(Map.of("monitored_queue_regex","^all\\.iotdpp\\..*","local_activemq_url","tcp://localhost:"+port,"query_interval_seconds",""+QueuesMonitoringProcesQueryIntervalSeconds));
 		plugin.registered(null);
 		plugin.process.consumer = new QueuesMonitoringPluginConsumer() {
 
@@ -138,8 +136,10 @@ class IoTPipelinePluginTest {
 		});
 		server.setConfiguration(config);
 		server.start();
-	
-		Thread.sleep(1000*10);
+		while (!server.getActiveMQServer().isActive()) {
+		    System.out.println("Waiting for server to start...");
+		    Thread.sleep(500);
+		}
 		return server;
 	}
 
@@ -258,7 +258,7 @@ class IoTPipelinePluginTest {
 		
 		QueuesMonitoringPlugin plugin = new QueuesMonitoringPlugin();
 		plugin.init(Map.of(
-				"monitored_topic_prefix","all.iotdpp.","local_activemq_url","tcp://localhost:6161","query_interval_seconds",""+QueuesMonitoringProcesQueryIntervalSeconds,"local_activemq_user","artemis","local_activemq_password","artemis"));
+				"monitored_queue_regex","^all\\.iotdpp\\.*","query_interval_seconds",""+QueuesMonitoringProcesQueryIntervalSeconds));
 		plugin.registered(null);
 		plugin.process.consumer = new QueuesMonitoringPluginConsumer() {
 

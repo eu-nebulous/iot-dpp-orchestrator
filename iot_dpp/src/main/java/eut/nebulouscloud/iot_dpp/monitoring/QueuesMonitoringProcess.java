@@ -30,6 +30,7 @@ import org.apache.activemq.artemis.core.server.ServerSession;
 import org.apache.activemq.artemis.core.transaction.Transaction;
 import org.apache.activemq.artemis.jms.client.ActiveMQConnectionFactory;
 import org.apache.activemq.artemis.jms.client.ActiveMQMessage;
+import org.apache.activemq.artemis.jms.server.JMSServerManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,20 +48,15 @@ public class QueuesMonitoringProcess implements Runnable {
 	QueueRequestor requestor;
 	public QueuesMonitoringPluginConsumer consumer;
 	final ActiveMQServer server;
-	final String monitoredTopicPrefix;
+	final String monitoredQueueRegex;
 	final int queryIntervalMS;
-	final String localActiveMQURL;
-	final String localActiveMQUser;
-	final String localActiveMQPassword;
+	private JMSServerManager jmsServer;
 
-	public QueuesMonitoringProcess(ActiveMQServer server, String monitoredTopicPrefix, int queryIntervalMS,
-			String activemqURL, String activemqUser, String activemqPassword, QueuesMonitoringPluginConsumer consumer) {
+	public QueuesMonitoringProcess(ActiveMQServer server, String monitoredQueueRegex, int queryIntervalMS, QueuesMonitoringPluginConsumer consumer) {
 		this.server = server;
-		this.monitoredTopicPrefix = monitoredTopicPrefix;
+		
+		this.monitoredQueueRegex = monitoredQueueRegex;
 		this.queryIntervalMS = queryIntervalMS;
-		this.localActiveMQURL = activemqURL;
-		this.localActiveMQUser = activemqUser;
-		this.localActiveMQPassword = activemqPassword;
 		this.consumer = consumer;
 	}
 
@@ -87,11 +83,11 @@ public class QueuesMonitoringProcess implements Runnable {
 			Object[] queues = (Object[]) JMSManagementHelper.getResult(reply);
 
 			for (Object queue : queues) {
-				String addressName = (String) queue;
-				if (addressName.startsWith(monitoredTopicPrefix)) {
+				String queueName = (String) queue;
+				if (queueName.matches(monitoredQueueRegex)) {
 					ret.add(queue.toString());
 				} else {
-					LOGGER.info("Ignore queue " + queue);
+					LOGGER.info("Ignore queue " + queue+" "+monitoredQueueRegex);
 				}
 
 			}
@@ -111,7 +107,7 @@ public class QueuesMonitoringProcess implements Runnable {
 
 			for (Object address : addresses) {
 				String addressName = (String) address;
-				if (addressName.startsWith(monitoredTopicPrefix)) {
+				if (addressName.startsWith(monitoredQueueRegex)) {
 					ret.add(address.toString());
 				}
 
@@ -126,12 +122,11 @@ public class QueuesMonitoringProcess implements Runnable {
 	// https://activemq.apache.org/components/artemis/documentation/javadocs/javadoc-latest/org/apache/activemq/artemis/api/core/management/QueueControl.html#browse(int,int)
 
 	private void connect() throws Exception {
-
 		initialContext = new InitialContext();
-		LOGGER.info("Connecting to {}", localActiveMQURL);
-		connectionFactory = new ActiveMQConnectionFactory(localActiveMQURL);
-		connection = connectionFactory.createQueueConnection(localActiveMQUser, localActiveMQPassword);
-		session = connection.createQueueSession(false, Session.AUTO_ACKNOWLEDGE);
+		LOGGER.info("Connecting to local activemq");
+		connectionFactory = new ActiveMQConnectionFactory( "vm://0");
+        connection = connectionFactory.createQueueConnection();
+        session = connection.createQueueSession(false, Session.AUTO_ACKNOWLEDGE);
 		managementQueue = session.createQueue("activemq.management");
 		connection.start();
 		requestor = new QueueRequestor(session, managementQueue);

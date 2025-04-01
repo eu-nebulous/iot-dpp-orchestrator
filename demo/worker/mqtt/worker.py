@@ -28,20 +28,19 @@ mqtt_client.username_pw_set(username=mqtt_user, password=mqtt_password)
 def map_value(old_value, old_min, old_max, new_min, new_max):
     return ( (old_value - old_min) / (old_max - old_min) ) * (new_max - new_min) + new_min
 
-
+def on_disconnect(client, userdata, rc):
+    print(f"Disconnected {rc}")
+    sys.exit(1)
+    
 def on_connect(client, userdata, flags, rc):
     if rc != 0:
         print(f"Failed to connect: RC:{rc}. loop_forever() will retry connection")
     else:
         print("Connected")
         mqtt_topic = f"$share/all/{iotdpp_topic_prefix}{step_name}/input/{previous_step_name}"
-        #mqtt_topic = f"{iotdpp_topic_prefix}{step_name}.input.{previous_step_name}"
-        #mqtt_topic ="iotdpp/#"
         print(f"Subscribing to {mqtt_topic}")
         mqtt_client.subscribe(mqtt_topic)
-def on_disconnect(a,b,c):
-    print("Got disconnected")
-# MQTT callback function
+
 def on_message(client, userdata, message):
     try:
         payload = message.payload.decode("utf-8")
@@ -94,9 +93,12 @@ print("Connecting to MQTT")
 mqtt_client.on_message = on_message
 mqtt_client.on_connect = on_connect
 mqtt_client.on_disconnect = on_disconnect
-#mqtt_client.on_publish = mycallbacks.on_publish;
-#mqtt_client.on_subscribe = mycallbacks.on_subscribe;
-mqtt_client.connect(mqtt_broker_address, mqtt_port)
+try:
+    mqtt_client.connect(mqtt_broker_address, mqtt_port)
+except Exception as e:
+    print(f"Connection error: {e}")
+    exit(1)
+     
 mqtt_client.enable_logger(logger)
 publish_thread = threading.Thread(target=process_messages)
 publish_thread.daemon = True  # Daemonize the thread so it will exit when the main thread exits

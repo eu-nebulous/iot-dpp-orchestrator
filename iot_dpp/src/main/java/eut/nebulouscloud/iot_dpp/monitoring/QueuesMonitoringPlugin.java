@@ -37,9 +37,10 @@ public class QueuesMonitoringPlugin implements ActiveMQServerPlugin {
 	public QueuesMonitoringProcess process;
 
 	Logger LOGGER = LoggerFactory.getLogger(QueuesMonitoringPlugin.class);
+	public QueuesMonitoringPluginConsumer consumer;
 
 	Map<String, String> properties;
-	String monitoredTopicPrefix;
+	String monitoredQueueRegex;
 
 	@Override
 	public void init(Map<String, String> properties) {
@@ -49,22 +50,19 @@ public class QueuesMonitoringPlugin implements ActiveMQServerPlugin {
 	@Override
 	public void registered(ActiveMQServer server) {
 
+		
 		LOGGER.info("QueuesMonitoringPlugin registered");
-		monitoredTopicPrefix = Optional.ofNullable(properties.getOrDefault("monitored_topic_prefix", null))
-				.orElseThrow(() -> new IllegalStateException("monitored_topic_prefix parameter is not defined"));
+		
+
+		monitoredQueueRegex = Optional.ofNullable(properties.getOrDefault("monitored_queue_regex", null))
+				.orElseThrow(() -> new IllegalStateException("monitored_queue_regex parameter is not defined"));
 		int QUERY_INTERVAL_MS = Integer.parseInt(properties.getOrDefault("query_interval_seconds", "3")) * 1000;
-		String activemqURL = properties.getOrDefault("local_activemq_url", "tcp://localhost:61616");
-
-		String activemqUser = Optional.ofNullable(properties.getOrDefault("local_activemq_user", null))
-				.orElseThrow(() -> new IllegalStateException("local_activemq_user parameter is not defined"));
-		String activemqPassword = Optional.ofNullable(properties.getOrDefault("local_activemq_user", null))
-				.orElseThrow(() -> new IllegalStateException("local_activemq_password parameter is not defined"));
-
-		process = new QueuesMonitoringProcess(server, monitoredTopicPrefix, QUERY_INTERVAL_MS, activemqURL,
-				activemqUser, activemqPassword, null);
+		process = new QueuesMonitoringProcess(server, monitoredQueueRegex, QUERY_INTERVAL_MS,consumer);
 		new Thread(process).start();
 
 	}
+	
+
 
 
 	public interface QueuesMonitoringPluginConsumer {

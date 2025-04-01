@@ -6,10 +6,10 @@ services:
     restart: always
     ports:
         - 6161:61616
-        - 8161:8161
+        - 8161:8161 #activemq mgmt ui
         - 6167:61619 #stomp
         - 5672:5672 # amqp
-        - 1883:1883
+        - 1883:1883 # mqtt
         - 1889:1889 #mqtt WS
     logging:
       driver: "json-file"

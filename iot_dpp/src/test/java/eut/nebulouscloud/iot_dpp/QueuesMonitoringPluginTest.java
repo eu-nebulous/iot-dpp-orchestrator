@@ -76,7 +76,7 @@ class QueuesMonitoringPluginTest {
 		config.setPagingDirectory(foldersRoot + "/paging");
 		config.addConnectorConfiguration("serverAt" + port + "Connector", "tcp://localhost:" + port);
 		config.addAcceptorConfiguration("netty", "tcp://localhost:" + port);
-		
+		config.addAcceptorConfiguration("vm", "vm://0");
 		
 		ClusterConnectionConfiguration cluster = new ClusterConnectionConfiguration();
 		cluster.setAddress("");
@@ -93,12 +93,7 @@ class QueuesMonitoringPluginTest {
 			}
 		}
 		QueuesMonitoringPlugin plugin = new QueuesMonitoringPlugin();
-		plugin.init(Map.of(
-				"monitored_topic_prefix","consumer.neb","local_activemq_url","tcp://localhost:"+port,"query_interval_seconds",""+QueuesMonitoringProcesQueryIntervalSeconds,"local_activemq_user","artemis","local_activemq_password","artemis"));
-		
-		config.getBrokerMessagePlugins().add(plugin);
-		plugin.registered(null);
-		plugin.process.consumer = new QueuesMonitoringPluginConsumer() {
+		plugin.consumer = new QueuesMonitoringPluginConsumer() {
 
 			@Override
 			public void consume(List<QueuesMonitoringMessage> messages) {
@@ -106,6 +101,12 @@ class QueuesMonitoringPluginTest {
 
 			}
 		};
+		plugin.init(Map.of(
+				"monitored_queue_regex","consumer\\.neb.*","local_activemq_url","tcp://localhost:"+port,"query_interval_seconds",""+QueuesMonitoringProcesQueryIntervalSeconds));
+		
+		config.getBrokerPlugins().add(plugin);
+	
+
 		/*EMSQueuesMonitoringPlugin plugin = new EMSQueuesMonitoringPlugin();
 		plugin.init(Map.of("monitored_topic_prefix",".neb","local_activemq_url","tcp://localhost:"+port,"query_interval_seconds",""+QueuesMonitoringProcesQueryIntervalSeconds));
 		*/
@@ -124,6 +125,10 @@ class QueuesMonitoringPluginTest {
 		});
 		server.setConfiguration(config);
 		server.start();
+		while (!server.getActiveMQServer().isActive()) {
+		    System.out.println("Waiting for server to start...");
+		    Thread.sleep(500);
+		}
 		return server;
 	}
 

@@ -20,13 +20,13 @@ public abstract class MessageLifecycleEvent {
 	public final long messageSize;
 	
 	
-	public final String messageAddress;
+	public final String messageQueue;
 	
 	
-	public MessageLifecycleEvent(long messageId,String messageAddress,long size, long timestamp)
+	public MessageLifecycleEvent(long messageId,String messageQueue,long size, long timestamp)
 	{
 		this.timestamp = timestamp;
-		this.messageAddress = messageAddress;
+		this.messageQueue = messageQueue;
 		this.messageId = messageId;
 		this.messageSize = size;
 		
