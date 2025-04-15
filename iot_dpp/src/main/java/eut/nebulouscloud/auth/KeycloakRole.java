@@ -1,7 +1,9 @@
 package eut.nebulouscloud.auth;
 
 /**
- * Represents a Keycloak role with its attributes.
+ * Represents a Keycloak role with its associated permissions and attributes.
+ * This class is used to map Keycloak roles to ActiveMQ Artemis roles and permissions.
+ * Each role has a unique ID, name, and a set of boolean flags representing different permissions.
  */
 public class KeycloakRole {
     public final String id;
@@ -66,7 +68,11 @@ public class KeycloakRole {
         this.edit = edit;
     }
     
-    
+    /**
+     * Returns a string representation of the KeycloakRole.
+     * 
+     * @return A string containing all role properties and their values
+     */
     @Override
     public String toString() {
         return "KeycloakRole{" +

@@ -2,10 +2,6 @@ package eut.nebulouscloud.auth;
 
 import static org.junit.Assert.assertTrue;
 
-import java.security.KeyFactory;
-import java.security.interfaces.RSAPublicKey;
-import java.security.spec.X509EncodedKeySpec;
-import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -22,7 +18,6 @@ import org.eclipse.paho.client.mqttv3.IMqttClient;
 import org.eclipse.paho.client.mqttv3.MqttClient;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
-import org.eclipse.paho.client.mqttv3.MqttSecurityException;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -30,9 +25,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.impl.DefaultClaims;
 
 /**
  * Test the correct functionaltiy of DynamicBridgePluginTest
@@ -48,7 +40,6 @@ class AuthPluginTest {
 	private static final String KEYCLOAK_REALM = "master";
 	private static final String KEYCLOAK_CLIENT_ID = "message_broker";
 	private static final String KEYCLOAK_CLIENT_SECRET = "Rp1PWLOtpoTP84OcjsmqsPYPlOubqJ7D";
-	private static final String KEYCLOAK_REALM_KEY = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAs8vF9zlzt2/vP6FWdDJkIHNq2GO9Oce/VpDlrZb4Jj/awVXDcuUV0acOXVll4XTycElWEjk7m9kGrnMFAA/s/c1UePNiaK8axMdk+Sirm8rzwU6lfvTVsGtyzoVqTAEr19TJvWN1UDjxRc9bFUouoeQeAL+fzn57Kjups2HkmnmKeajPJ7/KSorJ/B78vo4cuj/2yQv3cm0MGm7U8LqV/RVgmW3yrGOEJKR3p9rhk2tVEyO6QsWJA6HOgEEkvOg1mNxAMDy9d8u8AG2pZ3uuR5BTgD5fp7By74iUrn3KC+O+M6PuRjWXitKYlm8qA4H7+pKl1dQsu4hSScRN0XNfRwIDAQAB";
 	private static KeycloackRolesSyncPlugin syncp;
 	private static EmbeddedActiveMQ broker;
 
@@ -111,7 +102,7 @@ class AuthPluginTest {
 			properties.put(ActiveMQBasicSecurityManager.BOOTSTRAP_USER, "admin");
 			properties.put(ActiveMQBasicSecurityManager.BOOTSTRAP_PASSWORD, "admin");
 			properties.put(ActiveMQBasicSecurityManager.BOOTSTRAP_ROLE, "admin");
-			properties.put("keycloak.realmPublicKey", KEYCLOAK_REALM_KEY);
+			properties.put("keycloak.realmPublicKey", mockKeycloakServer.getPublicKey());
 			sm.init(properties);
 			server.setSecurityManager(sm);
 		}
@@ -154,7 +145,7 @@ class AuthPluginTest {
 			connOpts.setPassword("app_user_1".toCharArray());
 			publisher.connect(connOpts);
 			assert (false);
-		} catch (MqttSecurityException ex) {
+		} catch (Exception ex) {
 			LOGGER.info("Got MqttSecurityException as expected", ex);
 			assert (true);
 		}

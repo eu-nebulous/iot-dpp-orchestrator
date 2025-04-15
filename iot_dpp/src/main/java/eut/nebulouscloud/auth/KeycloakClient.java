@@ -10,32 +10,44 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.core.type.TypeReference;
-
 import java.util.List;
 import java.util.Map;
 import java.util.ArrayList;
-import java.util.HashMap;
 
 /**
  * Client for interacting with Keycloak authentication service.
- * Handles token acquisition and management.
+ * This class handles token acquisition, management, and role synchronization with Keycloak.
+ * It provides functionality to authenticate with Keycloak, obtain access tokens, and retrieve role information.
  */
 public class KeycloakClient {
     
     private static final Logger LOGGER = LoggerFactory.getLogger(KeycloakClient.class);
     
+    /** The base URL of the Keycloak server */
     private final String keycloakBaseUrl;
+    
+    /** The realm name in Keycloak */
     private final String realm;
+    
+    /** The client ID for authentication */
     private final String clientId;
+    
+    /** The client secret for authentication */
     private final String clientSecret;
+    
+    /** Object mapper for JSON serialization/deserialization */
     private final ObjectMapper objectMapper;
     
+    /** The current access token */
     private String accessToken;
+    
+    /** The type of token (e.g., "Bearer") */
     private String tokenType;
+    
+    /** The expiration time of the current token */
     private long tokenExpirationTime;
     
     /**
@@ -53,11 +65,13 @@ public class KeycloakClient {
         this.clientSecret = clientSecret;        
         this.objectMapper = new ObjectMapper();
         
-        LOGGER.info("KeycloakClient initialized with base URL: {}", keycloakBaseUrl);
+        LOGGER.info("KeycloakClient initialized with base URL: {}, realm: {}", keycloakBaseUrl, realm);
     }
     
     /**
-     * Obtains an access token from Keycloak using client credentials flow
+     * Obtains an access token from Keycloak using client credentials flow.
+     * This method handles the OAuth2 client credentials grant type.
+     * 
      * @return true if token was successfully obtained, false otherwise
      */
     public boolean obtainToken() {
@@ -91,7 +105,7 @@ public class KeycloakClient {
                 // Calculate expiration time (current time + expires_in seconds)
                 tokenExpirationTime = System.currentTimeMillis() + (expiresIn * 1000);
                 
-                LOGGER.debug("Successfully obtained token from Keycloak");
+                LOGGER.debug("Successfully obtained token from Keycloak, expires in {} seconds", expiresIn);
                 return true;
             } else {
                 LOGGER.error("Failed to obtain token from Keycloak. Status code: {}", 
@@ -105,12 +119,14 @@ public class KeycloakClient {
     }
     
     /**
-     * Gets the current access token, refreshing it if necessary
+     * Gets the current access token, refreshing it if necessary.
+     * 
      * @return The access token or null if token could not be obtained
      */
     public String getAccessToken() {
         // Check if token is expired or not yet obtained
         if (accessToken == null || System.currentTimeMillis() >= tokenExpirationTime) {
+            LOGGER.debug("Token expired or not obtained, attempting to obtain new token");
             if (!obtainToken()) {
                 return null;
             }
@@ -119,7 +135,8 @@ public class KeycloakClient {
     }
     
     /**
-     * Gets the token type (e.g., "Bearer")
+     * Gets the token type (e.g., "Bearer").
+     * 
      * @return The token type
      */
     public String getTokenType() {
@@ -127,7 +144,8 @@ public class KeycloakClient {
     }
     
     /**
-     * Gets the full authorization header value (e.g., "Bearer eyJhbGciOiJSUzI1...")
+     * Gets the full authorization header value (e.g., "Bearer eyJhbGciOiJSUzI1...").
+     * 
      * @return The authorization header value or null if token is not available
      */
     public String getAuthorizationHeader() {
@@ -139,7 +157,8 @@ public class KeycloakClient {
     }
     
     /**
-     * Lists all roles defined in the Keycloak realm
+     * Lists all roles defined in the Keycloak realm.
+     * 
      * @return A list of role information as maps, or an empty list if the request fails
      */
     public List<Map<String, Object>> listRoles() {
@@ -187,10 +206,9 @@ public class KeycloakClient {
         }
     }
     
- 
-    
     /**
-     * Gets detailed information for a specific role by its ID
+     * Gets detailed information for a specific role by its ID.
+     * 
      * @param roleId The ID of the role to retrieve
      * @return A map containing the role details, or null if the request fails
      */
@@ -239,8 +257,13 @@ public class KeycloakClient {
         }
     }
 
-    public boolean isTrue(String value)
-    {	
+    /**
+     * Checks if a string value represents a boolean true.
+     * 
+     * @param value The string value to check
+     * @return true if the value represents a boolean true, false otherwise
+     */
+    public boolean isTrue(String value) {	
         return value != null && (
             value.toLowerCase().equals("true") ||
             value.toLowerCase().equals("yes") ||
@@ -249,15 +272,26 @@ public class KeycloakClient {
         );
     }
     
-    public String getPropertyValue(Object value)
-    {
-    	if(value == null) return null;
-    	String ret = value.toString();
-    	return ret.replaceAll("^\\[","").replaceAll("\\]$","");
+    /**
+     * Gets the string value of a property, removing array brackets if present.
+     * 
+     * @param value The property value to process
+     * @return The processed string value, or null if the input is null
+     */
+    public String getPropertyValue(Object value) {
+        if(value == null) return null;
+        String ret = value.toString();
+        return ret.replaceAll("^\\[","").replaceAll("\\]$","");
     }
 
-    private boolean isBooleanAttributeTrue(Map<String, Object> attributes, String attributeName)
-    {
+    /**
+     * Checks if a boolean attribute in a map is true.
+     * 
+     * @param attributes The map of attributes
+     * @param attributeName The name of the attribute to check
+     * @return true if the attribute exists and is true, false otherwise
+     */
+    private boolean isBooleanAttributeTrue(Map<String, Object> attributes, String attributeName) {
         if (attributes.containsKey(attributeName)) {
             return isTrue(getPropertyValue(attributes.get(attributeName)));
         }
@@ -265,7 +299,10 @@ public class KeycloakClient {
     }
     
     /**
-     * Gets detailed information for all roles with their attributes
+     * Gets detailed information for all roles with their attributes.
+     * This method retrieves all roles from Keycloak and processes their attributes
+     * to create KeycloakRole objects.
+     * 
      * @return A list of KeycloakRole objects, or an empty list if the request fails
      */
     public List<KeycloakRole> getDetailedRoles() {
@@ -273,6 +310,7 @@ public class KeycloakClient {
         
         // First, get the list of all roles
         List<Map<String, Object>> roles = listRoles();
+        LOGGER.debug("Retrieved {} roles from Keycloak", roles.size());
         
         // For each role, get its detailed information
         for (Map<String, Object> role : roles) {
@@ -318,7 +356,6 @@ public class KeycloakClient {
                 boolean view = isBooleanAttributeTrue(attributes, "view");
                 boolean edit = isBooleanAttributeTrue(attributes, "edit");
                 
-                
                 // Create a KeycloakRole object with all the extracted properties
                 KeycloakRole keycloakRole = new KeycloakRole(
                     roleId, roleName, match, read, write,
@@ -329,12 +366,12 @@ public class KeycloakClient {
                 
                 detailedRoles.add(keycloakRole);
                 LOGGER.debug("Added role: {}", keycloakRole);
-            }else{
+            } else {
                 LOGGER.debug("Skipping role with missing details: {} with details: {}", roleName, roleDetails);
             }
         }
         
+        LOGGER.info("Successfully processed {} detailed roles from Keycloak", detailedRoles.size());
         return detailedRoles;
     }
-
 } 
