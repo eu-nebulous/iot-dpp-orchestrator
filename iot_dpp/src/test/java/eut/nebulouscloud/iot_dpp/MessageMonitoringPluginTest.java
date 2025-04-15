@@ -76,10 +76,7 @@ class MessageMonitoringPluginTest {
 		config.setPagingDirectory(foldersRoot + "/paging");
 		config.addConnectorConfiguration("serverAt" + port + "Connector", "tcp://localhost:" + port);
 		config.addAcceptorConfiguration("netty", "tcp://localhost:" + port);
-		config.addAcceptorConfiguration("vm", "vm://0");
-		// config.setPersistenceEnabled(true);		
-		
-		
+		// config.setPersistenceEnabled(true);				
 		ClusterConnectionConfiguration cluster = new ClusterConnectionConfiguration();
 		cluster.setAddress("");
 		cluster.setConnectorName("serverAt" + port + "Connector");
@@ -106,7 +103,7 @@ class MessageMonitoringPluginTest {
 		
 		plugin.monitoredQueueRegex = testTopic+"";
 
-		config.getBrokerMessagePlugins().add(plugin);
+		config.getBrokerPlugins().add(plugin);
 		EmbeddedActiveMQ server = new EmbeddedActiveMQ();
 		server.setSecurityManager(new ActiveMQSecurityManager() {
 			@Override

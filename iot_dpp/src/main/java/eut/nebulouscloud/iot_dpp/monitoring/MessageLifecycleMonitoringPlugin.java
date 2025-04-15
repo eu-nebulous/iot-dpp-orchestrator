@@ -86,9 +86,7 @@ public abstract class MessageLifecycleMonitoringPlugin implements ActiveMQServer
 	 * @return
 	 */
 	private String getServerName(ServerConsumer consumer) {
-		// TODO: Find a better way of retrieving server name rather than parsing the
-		// string representation of the consumer object.
-		return consumer.toString().split("server=ActiveMQServerImpl::name=")[1].split("]")[0];
+		return server.getIdentity();
 	}
 
 	/**

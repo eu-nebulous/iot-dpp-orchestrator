@@ -7,7 +7,6 @@ import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import eut.nebulouscloud.iot_dpp.monitoring.QueuesMonitoringPlugin.QueuesMonitoringPluginConsumer;
 
 public class EMSQueuesMonitoringPlugin extends QueuesMonitoringPlugin {
 	static Logger LOGGER = LoggerFactory.getLogger(EMSQueuesMonitoringPlugin.class);

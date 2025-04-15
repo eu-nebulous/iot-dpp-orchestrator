@@ -17,6 +17,14 @@ public class QueuesMonitoringMessage {
 		this.queue = queue;
 		
 	}
+	@Override
+	public String toString() {
+		return "QueuesMonitoringMessage [queue=" + queue + ", time=" + time + ", messageCount=" + messageCount
+				+ ", maxMessageAge=" + maxMessageAge + ", consumersCount=" + consumersCount + ", groupCount="
+				+ groupCount + ", messagesAddedFrequency=" + messagesAddedFrequency + ", messagesAdded=" + messagesAdded
+				+ "]";
+	}
+	
 	
 	
 	

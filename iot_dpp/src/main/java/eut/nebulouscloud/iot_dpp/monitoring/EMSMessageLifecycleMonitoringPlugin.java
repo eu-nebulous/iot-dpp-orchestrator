@@ -1,15 +1,12 @@
 package eut.nebulouscloud.iot_dpp.monitoring;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import eut.nebulouscloud.iot_dpp.monitoring.QueuesMonitoringPlugin.QueuesMonitoringPluginConsumer;
 import eut.nebulouscloud.iot_dpp.monitoring.events.MessageAcknowledgedEvent;
 import eut.nebulouscloud.iot_dpp.monitoring.events.MessageDeliveredEvent;
 import eut.nebulouscloud.iot_dpp.monitoring.events.MessageLifecycleEvent;
