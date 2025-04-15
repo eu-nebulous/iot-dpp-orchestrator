@@ -34,6 +34,7 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import eut.nebulouscloud.bridge.ControlPlaneBridgePlugin;
 import eut.nebulouscloud.iot_dpp.monitoring.EMSQueuesMonitoringPlugin;
 import eut.nebulouscloud.iot_dpp.monitoring.EMSQueuesMonitoringPluginConsumer;
 import eut.nebulouscloud.iot_dpp.monitoring.MessageLifecycleMonitoringPlugin;
@@ -105,6 +106,9 @@ class QueuesMonitoringPluginTest {
 				"monitored_queue_regex","consumer\\.neb.*","local_activemq_url","tcp://localhost:"+port,"query_interval_seconds",""+QueuesMonitoringProcesQueryIntervalSeconds));
 		
 		config.getBrokerPlugins().add(plugin);
+		
+		ControlPlaneBridgePlugin dbp = new ControlPlaneBridgePlugin();
+		config.getBrokerPlugins().add(dbp);
 	
 
 		/*EMSQueuesMonitoringPlugin plugin = new EMSQueuesMonitoringPlugin();
