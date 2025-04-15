@@ -1,30 +1,22 @@
 package eut.nebulouscloud.iot_dpp.pipeline;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import javax.jms.Message;
-import javax.jms.Queue;
-import javax.jms.QueueConnection;
-import javax.jms.QueueRequestor;
-import javax.jms.QueueSession;
-import javax.jms.Session;
-import javax.naming.InitialContext;
-
 import org.apache.activemq.artemis.api.core.QueueConfiguration;
-import org.apache.activemq.artemis.api.core.management.ResourceNames;
-import org.apache.activemq.artemis.api.jms.management.JMSManagementHelper;
+import org.apache.activemq.artemis.api.core.SimpleString;
+import org.apache.activemq.artemis.core.config.DivertConfiguration;
+import org.apache.activemq.artemis.core.config.TransformerConfiguration;
 import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.apache.activemq.artemis.core.server.ComponentConfigurationRoutingType;
 import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerPlugin;
 import org.apache.activemq.artemis.core.settings.impl.AddressSettings;
-import org.apache.activemq.artemis.jms.client.ActiveMQConnectionFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,230 +32,109 @@ import eut.nebulouscloud.iot_dpp.MessageGroupIDAnotator;
  * configure the local Artemis message broker to enact said pipeline
  */
 public class IoTPipelineConfigurator implements ActiveMQServerPlugin {
-
 	private final static String IOT_PIPELINE_DIVERT_PREFIX = "iotdpp.";
 	public final static String IOT_DPP_TOPICS_PREFIX = "iotdpp.";
-
 	Logger LOGGER = LoggerFactory.getLogger(IoTPipelineConfigurator.class);
-	QueueConnection connection = null;
-	ActiveMQConnectionFactory connectionFactory;
-	InitialContext initialContext = null;
-	QueueSession session = null;
-	Queue managementQueue;
-	QueueRequestor requestor;	
 	public final static String IOT_DPP_PIPELINE_STEPS_ENV_VAR = "IOT_DPP_PIPELINE_STEPS";
 	Map<String, IoTPipelineStepConfiguration> pipelineSteps;
 
 	private class IoTPipelineConfiguratorProcess implements Runnable {
 		ActiveMQServer server;
+
 		public IoTPipelineConfiguratorProcess(ActiveMQServer server) {
 			this.server = server;
 		}
 
-		private void connect() {
-			System.setProperty("java.naming.factory.initial",
-					"org.apache.activemq.artemis.jndi.ActiveMQInitialContextFactory");
-			int maxTryCount = 3;
-			for (int i = 0; i < maxTryCount; i++) {
-				try {
-					initialContext = new InitialContext();
-					LOGGER.info("Connecting to broker");
-					connectionFactory = new ActiveMQConnectionFactory( "vm://0");
-			        connection = connectionFactory.createQueueConnection();
-			        session = connection.createQueueSession(false, Session.AUTO_ACKNOWLEDGE);
-					managementQueue = session.createQueue("activemq.management");
-					connection.start();
-					requestor = new QueueRequestor(session, managementQueue);
-					return;
-				} catch (Exception ex) {
-					LOGGER.error("", ex);
-					LOGGER.error("Wait 5 seconds");
-					try {
-						Thread.sleep(2 * 1000);
-					} catch (InterruptedException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					}
-				}
-			}
-			return;
-
-		}
-
 		private boolean removeDivert(String divertName) {
+
+			LOGGER.info(String.format("callRemoveDivert divertName: %s", divertName));
 			try {
-
-				LOGGER.info(String.format("callRemoveDivert divertName: %s", divertName));
-				Message m = session.createMessage();
-				JMSManagementHelper.putOperationInvocation(m, ResourceNames.BROKER, "destroyDivert", divertName);
-				Message reply = requestor.request(m);
-				boolean success = JMSManagementHelper.hasOperationSucceeded(reply);
-				if (success) {
-					Object result = JMSManagementHelper.getResult(reply);
-					return true;
-				} else {
-					LOGGER.error("Failed to list diverts");
-					return false;
-				}
-
+				server.destroyDivert(SimpleString.of(divertName));
+				return true;
 			} catch (Exception ex) {
 				LOGGER.error("", ex);
 				return false;
 			}
-		}
 
-		private boolean createDivert(String divertName, String address, String forwardingAddress, boolean exclusive,
-				String filterString, String transformerClassName, String transformerPropertiesAsJSON,
-				String routingType) {
-			try {
-
-				LOGGER.info(String.format(
-						"callCreateDivert divertName: %s, address: %s forwardingAddress: %s exclusive: %s filterString: %s, transformerClassName: %s, transformerPropertiesAsJSON: %s, routingType: %s",
-						divertName, address, forwardingAddress, "" + exclusive, filterString, transformerClassName,
-						transformerPropertiesAsJSON, routingType));
-				Message m = session.createMessage();
-				// createDivert​(String name, String routingName, String address, String
-				// forwardingAddress, boolean exclusive, String filterString,
-				// String transformerClassName, String transformerPropertiesAsJSON, String
-				// routingType)
-				JMSManagementHelper.putOperationInvocation(m, ResourceNames.BROKER, "createDivert", divertName,
-						divertName, address, forwardingAddress, exclusive, filterString, transformerClassName,
-						transformerPropertiesAsJSON, routingType);
-
-				Message reply = requestor.request(m);
-				boolean success = JMSManagementHelper.hasOperationSucceeded(reply);
-				if (success) {
-					Object result = JMSManagementHelper.getResult(reply);
-					return true;
-				} else {
-					String error = JMSManagementHelper.getResult(reply).toString();
-					LOGGER.error("Failed to list diverts: " + error);
-					return false;
-				}
-
-			} catch (Exception ex) {
-				LOGGER.error("", ex);
-				return false;
-			}
 		}
 
 		private List<String> listDivertNames() {
-			// https://activemq.apache.org/components/artemis/documentation/javadocs/javadoc-latest/org/apache/activemq/artemis/api/core/management/ActiveMQServerControl.html
 			try {
-				Message m = session.createMessage();
-				JMSManagementHelper.putOperationInvocation(m, ResourceNames.BROKER, "listDivertNames");
-				Message reply = requestor.request(m);
-				List<String> ret = new LinkedList<String>();
-				boolean success = JMSManagementHelper.hasOperationSucceeded(reply);
-				if (success) {
-					Object[] addresses = (Object[]) JMSManagementHelper.getResult(reply);
-
-					for (Object address : addresses) {
-						String addressName = (String) address;
-						ret.add(addressName);
-
-					}
-				} else {
-					LOGGER.error("Failed to list diverts");
-				}
-				return ret;
+				return Arrays.asList(server.getActiveMQServerControl().listDivertNames());
 
 			} catch (Exception ex) {
 				LOGGER.error("", ex);
 			}
 			return null;
-
 		}
-		
-		private void configAddressSpace()
-		{
+
+		private boolean configAddressSpace() {
 			try {
-				String addressPattern = IOT_DPP_TOPICS_PREFIX+"#";
-				//String addressPattern = "iotdpp#";
-				AddressSettings settings = new AddressSettings();	
-				//https://activemq.apache.org/components/artemis/documentation/latest/address-settings.html#address-settings
+				String addressPattern = IOT_DPP_TOPICS_PREFIX + "#";
+				// String addressPattern = "iotdpp#";
+				AddressSettings settings = new AddressSettings();
+				// https://activemq.apache.org/components/artemis/documentation/latest/address-settings.html#address-settings
 				settings.setAutoCreateAddresses(false);
-				settings.setAutoCreateQueues(false); //Change this to false for strict mode.
+				settings.setAutoCreateQueues(false); // Change this to false for strict mode.
 				settings.setAutoDeleteAddresses(false);
 				settings.setAutoDeleteQueues(false);
 				settings.setAutoDeleteCreatedQueues(false);
-				settings.setDefaultPurgeOnNoConsumers(false);				
-				Message m = session.createMessage();
-				JMSManagementHelper.putOperationInvocation(m, ResourceNames.BROKER, "addAddressSettings",addressPattern,settings.toJSON());
-				Message reply = requestor.request(m);
-				boolean success = JMSManagementHelper.hasOperationSucceeded(reply);
-				if (success) {
-					LOGGER.info("success addAddressSettings"+addressPattern);
-				} else {
-					String error = JMSManagementHelper.getResult(reply).toString();
-					LOGGER.error("Failed to addAddressSettings "+addressPattern+" "+error );
-				}
+				settings.setDefaultPurgeOnNoConsumers(false);
+				server.getAddressSettingsRepository().addMatch(addressPattern, settings);
+				return true;
 
 			} catch (Exception ex) {
 				LOGGER.error("failed to addAddressSettings", ex);
+				return false;
 			}
-			
-			
-		}
-		
-		private void deleteAddress(String address)
-		{
-			try {
-				Message m = session.createMessage();
-				JMSManagementHelper.putOperationInvocation(m, ResourceNames.BROKER, "deleteAddress",address,true);
-				Message reply = requestor.request(m);
-				List<String> ret = new LinkedList<String>();
-				boolean success = JMSManagementHelper.hasOperationSucceeded(reply);
-				if (success) {
-					LOGGER.info("deleted address "+address);
-				} else {
-					String error = JMSManagementHelper.getResult(reply).toString();
-					LOGGER.error("Failed to deleteAddress "+address+" "+error );
-				}
 
+		}
+
+		private void deleteAddress(String address) {
+			try {
+				server.getActiveMQServerControl().deleteAddress(address);
 			} catch (Exception ex) {
 				LOGGER.error("failed to deleteAddress", ex);
 			}
-			
+
 		}
-		
-		private void createAddress(String address)
-		{
+
+		private void createAddress(String address) {
 			try {
 				deleteAddress(address);
-				Message m = session.createMessage();
-				JMSManagementHelper.putOperationInvocation(m, ResourceNames.BROKER, "createAddress",address,"MULTICAST");
-				Message reply = requestor.request(m);
-				List<String> ret = new LinkedList<String>();
-				boolean success = JMSManagementHelper.hasOperationSucceeded(reply);
-				if (success) {
-					LOGGER.info("created address "+address);
-				} else {
-					String error = JMSManagementHelper.getResult(reply).toString();
-					LOGGER.error("Failed to createAddress "+address+" "+error );
-				}
+				server.getActiveMQServerControl().createAddress(address, "MULTICAST");
 
 			} catch (Exception ex) {
 				LOGGER.error("failed to createAddress", ex);
 			}
-			
+
 		}
 
 		private void createDivert(String stepName, IoTPipelineStepConfiguration inputConfig)
 				throws JsonProcessingException {
 
-			String divertName = IOT_PIPELINE_DIVERT_PREFIX + stepName + ".input";
-			String divertAddress = IOT_DPP_TOPICS_PREFIX + inputConfig.inputStream + ".output";
-			String forwardingAddress = IOT_DPP_TOPICS_PREFIX + stepName + ".input." + inputConfig.inputStream;
+			try {
+				String divertName = IOT_PIPELINE_DIVERT_PREFIX + stepName + ".input";
+				String divertAddress = IOT_DPP_TOPICS_PREFIX + inputConfig.inputStream + ".output";
+				String forwardingAddress = IOT_DPP_TOPICS_PREFIX + stepName + ".input." + inputConfig.inputStream;
 
-			ObjectMapper om = new ObjectMapper();
-			String divertProperties = om
-					.writeValueAsString(Map.of(MessageGroupIDAnotator.GROUP_ID_EXTRACTION_CONFIG_MAP_ENV_VAR,
-							Map.of(forwardingAddress, inputConfig.groupingKeyAccessor)));		
-
-			createDivert(divertName, divertAddress, forwardingAddress, false, null,
-					GroupIDAnnotationDivertTransfomer.class.getName(), divertProperties,
-					ComponentConfigurationRoutingType.MULTICAST.toString());
+				ObjectMapper om = new ObjectMapper();
+				DivertConfiguration conf = new DivertConfiguration();
+				conf.setName(divertName);
+				conf.setAddress(divertAddress);
+				conf.setForwardingAddress(forwardingAddress);
+				conf.setExclusive(false);
+				conf.setFilterString(null);
+				TransformerConfiguration tc = new TransformerConfiguration(
+						GroupIDAnnotationDivertTransfomer.class.getName());
+				tc.setProperties(Map.of(MessageGroupIDAnotator.GROUP_ID_EXTRACTION_CONFIG_MAP_ENV_VAR,
+						om.writeValueAsString(Map.of(forwardingAddress, inputConfig.groupingKeyAccessor))));
+				conf.setRoutingType(ComponentConfigurationRoutingType.MULTICAST);
+				conf.setTransformerConfiguration(tc);
+				server.deployDivert(conf);
+			} catch (Exception ex) {
+				LOGGER.error("Failed to create divert", ex);
+			}
 
 		}
 
@@ -299,36 +170,31 @@ public class IoTPipelineConfigurator implements ActiveMQServerPlugin {
 			LOGGER.info("NebulOuS diverts: " + String.join(", ", diverts));
 
 		}
-		
-		
-		private void createAddresses()
-		{
-			
+
+		private void createAddresses() {
+
 			LOGGER.info("createAddresses");
-			
+
 			Set<String> addresses = new HashSet<String>();
-			
+
 			for (String step : pipelineSteps.keySet()) {
-					addresses.add(IOT_DPP_TOPICS_PREFIX + pipelineSteps.get(step).inputStream + ".output");
-					addresses.add(IOT_DPP_TOPICS_PREFIX + step + ".input." + pipelineSteps.get(step).inputStream);
-					addresses.add(IOT_DPP_TOPICS_PREFIX +step+ ".output");
+				addresses.add(IOT_DPP_TOPICS_PREFIX + pipelineSteps.get(step).inputStream + ".output");
+				addresses.add(IOT_DPP_TOPICS_PREFIX + step + ".input." + pipelineSteps.get(step).inputStream);
+				addresses.add(IOT_DPP_TOPICS_PREFIX + step + ".output");
 			}
-			
-			for(String address : addresses)
-			{
-				try{
+
+			for (String address : addresses) {
+				try {
 					createAddress(address);
-				}catch(Exception ex)
-				{
+				} catch (Exception ex) {
 					LOGGER.error("Failed to create address ");
 				}
-			
+
 			}
-			
-		
+
 		}
 
-		private void createQueues() {			
+		private void createQueues() {
 			LOGGER.info("createQueues");
 			for (String step : pipelineSteps.keySet()) {
 				LOGGER.info("create queues for step " + step);
@@ -337,28 +203,15 @@ public class IoTPipelineConfigurator implements ActiveMQServerPlugin {
 
 			}
 		}
-		
-		
-		private void deleteQueue(String queueName)
-		{
+
+		private boolean deleteQueue(String queueName) {
 			try {
-			LOGGER.info(String.format("Deleting queue. QueueName: %s", queueName));
-			Message m = session.createMessage();
-			
-			
-			JMSManagementHelper.putOperationInvocation(m, ResourceNames.BROKER, "destroyQueue", queueName,true,true);
-			Message reply = requestor.request(m);
-			boolean success = JMSManagementHelper.hasOperationSucceeded(reply);
-			if (success) {
-				LOGGER.info("Deleted queue: "+queueName);
-				
-			} else {
-				String error = JMSManagementHelper.getResult(reply).toString();
-				LOGGER.warn("Failed to deleteQueue: "+queueName+" : " + error);
-			}
-			}catch(Exception ex)
-			{
-				LOGGER.warn("Failed to deleteQueue: "+queueName+" : " + ex);
+				LOGGER.info(String.format("Deleting queue. QueueName: %s", queueName));
+				server.destroyQueue(SimpleString.of(queueName));
+				return true;
+			} catch (Exception ex) {
+				LOGGER.warn("Failed to deleteQueue: " + queueName + " : " + ex);
+				return false;
 			}
 		}
 
@@ -366,13 +219,10 @@ public class IoTPipelineConfigurator implements ActiveMQServerPlugin {
 			try {
 				String addressName = IOT_DPP_TOPICS_PREFIX + stepName + ".input." + inputConfig.inputStream;
 				String queueName = "all." + addressName;
-				
-				deleteQueue(queueName);
-				
-				LOGGER.info(String.format("Creating queue. Address: %s QueueName: %s", addressName, queueName));
-				Message m = session.createMessage();
-				
 
+				deleteQueue(queueName);
+
+				LOGGER.info(String.format("Creating queue. Address: %s QueueName: %s", addressName, queueName));
 				QueueConfiguration config = new QueueConfiguration();
 				config.setAddress(addressName);
 				config.setConfigurationManaged(true);
@@ -381,37 +231,21 @@ public class IoTPipelineConfigurator implements ActiveMQServerPlugin {
 				config.setDurable(true);
 				String filter = "NOT ((AMQAddress = 'activemq.management') OR (AMQAddress = 'activemq.notifications'))";
 				config.setFilterString(filter);
-				
-				JMSManagementHelper.putOperationInvocation(m, ResourceNames.BROKER, "createQueue", config.toJSON());
-				
-				Message reply = requestor.request(m);
-				boolean success = JMSManagementHelper.hasOperationSucceeded(reply);
-				if (success) {
-					Object result = JMSManagementHelper.getResult(reply);
-					return true;
-				} else {
-					String error = JMSManagementHelper.getResult(reply).toString();
-					LOGGER.error("Failed to createInputQueue: " + error);
-					return false;
-				}
+				server.createQueue(config);
+				return true;
 
 			} catch (Exception ex) {
-				LOGGER.error("", ex);
+				LOGGER.error("Failed to createInputQueue", ex);
 				return false;
 			}
 		}
-		
+
 		private boolean createOutputQueue(String stepName) {
 			try {
 				String addressName = IOT_DPP_TOPICS_PREFIX + stepName + ".output";
 				String queueName = "all." + addressName;
-				
 				deleteQueue(queueName);
-				
 				LOGGER.info(String.format("Creating queue. Address: %s QueueName: %s", addressName, queueName));
-				Message m = session.createMessage();
-				
-
 				QueueConfiguration config = new QueueConfiguration();
 				config.setAddress(addressName);
 				config.setName(queueName);
@@ -420,31 +254,19 @@ public class IoTPipelineConfigurator implements ActiveMQServerPlugin {
 				config.setDurable(true);
 				String filter = "NOT ((AMQAddress = 'activemq.management') OR (AMQAddress = 'activemq.notifications'))";
 				config.setFilterString(filter);
-				
-				JMSManagementHelper.putOperationInvocation(m, ResourceNames.BROKER, "createQueue", config.toJSON());
-				
-				Message reply = requestor.request(m);
-				boolean success = JMSManagementHelper.hasOperationSucceeded(reply);
-				if (success) {
-					Object result = JMSManagementHelper.getResult(reply);
-					return true;
-				} else {
-					String error = JMSManagementHelper.getResult(reply).toString();
-					LOGGER.error("Failed to createInputQueue: " + error);
-					return false;
-				}
 
+				server.createQueue(config);
+				return true;
 			} catch (Exception ex) {
-				LOGGER.error("", ex);
+				LOGGER.error("Failed to createOutputQueue", ex);
 				return false;
 			}
 		}
 
 		@Override
 		public void run() {
-			
-			while(server!=null && !server.isActive())
-			{
+
+			while (server != null && !server.isActive()) {
 				LOGGER.info("Wait for server activation");
 
 				try {
@@ -454,15 +276,13 @@ public class IoTPipelineConfigurator implements ActiveMQServerPlugin {
 					e.printStackTrace();
 				}
 			}
-			
-			
+
 			LOGGER.info("IoTPipelineConfigurator registered");
-			connect();
+
 			configAddressSpace();
 			createAddresses();
 			createQueues();
 			initDiverts();
-			
 
 		}
 
@@ -490,9 +310,9 @@ public class IoTPipelineConfigurator implements ActiveMQServerPlugin {
 		String pipelineStepsString = Optional.ofNullable(properties.getOrDefault(IOT_DPP_PIPELINE_STEPS_ENV_VAR, null))
 				.orElseThrow(
 						() -> new IllegalStateException(IOT_DPP_PIPELINE_STEPS_ENV_VAR + " parameter is not defined"));
-		
+
 		pipelineSteps = parsePipelineSteps(pipelineStepsString);
-		
+
 		try {
 			LOGGER.info(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(pipelineSteps));
 		} catch (JsonProcessingException e) {
@@ -505,7 +325,7 @@ public class IoTPipelineConfigurator implements ActiveMQServerPlugin {
 	@Override
 	public void registered(ActiveMQServer server) {
 		LOGGER.info("IoTPipelineConfigurator registered");
-		new Thread(new IoTPipelineConfiguratorProcess(server)).start();		
+		new Thread(new IoTPipelineConfiguratorProcess(server)).start();
 	}
 
 }

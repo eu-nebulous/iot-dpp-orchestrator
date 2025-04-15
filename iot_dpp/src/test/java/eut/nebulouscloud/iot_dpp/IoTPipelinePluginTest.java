@@ -86,9 +86,7 @@ class IoTPipelinePluginTest {
 		config.setPagingDirectory(foldersRoot + "/paging");
 		config.addConnectorConfiguration("serverAt" + port + "Connector", "tcp://localhost:" + port);
 		config.addAcceptorConfiguration("netty", "tcp://localhost:" + port);
-		config.addAcceptorConfiguration("vm", "vm://0");
 		
-
 		ClusterConnectionConfiguration cluster = new ClusterConnectionConfiguration();
 		cluster.setAddress("");
 		cluster.setConnectorName("serverAt" + port + "Connector");
