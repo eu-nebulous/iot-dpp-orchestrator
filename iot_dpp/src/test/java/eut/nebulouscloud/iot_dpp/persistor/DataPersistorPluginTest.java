@@ -1,8 +1,10 @@
 package eut.nebulouscloud.iot_dpp.persistor;
 
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
@@ -26,11 +28,19 @@ import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.testng.Assert.ThrowingRunnable;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jayway.jsonpath.JsonPath;
+import com.jayway.jsonpath.Option;
+import com.jayway.jsonpath.ParseContext;
 
 
 public class DataPersistorPluginTest {
 	static Logger LOGGER = LoggerFactory.getLogger(DataPersistorPluginTest.class);
+	
+	private ParseContext jsonParser = JsonPath.using(com.jayway.jsonpath.Configuration.defaultConfiguration()
+			.addOptions(Option.DEFAULT_PATH_LEAF_TO_NULL).addOptions(Option.ALWAYS_RETURN_LIST));
 	/**
 	 * Creates a local ActiveMQ server listening at localhost:61616. The server
 	 * accepts requests from any user. Configures the MessageMonitoringPluging and
@@ -77,19 +87,28 @@ public class DataPersistorPluginTest {
 	@Test
 	public void testExtractors() throws Exception {
 		
-		assertEquals("a", MessageDataExtractionUtils.regexTransform("a","(.*)","$1"));
-		assertEquals("aa", MessageDataExtractionUtils.regexTransform("a","(.*)","$1$1"));
-		assertEquals("a-a", MessageDataExtractionUtils.regexTransform("a","(.*)","$1-$1"));
-		assertEquals("los", MessageDataExtractionUtils.regexTransform("pepito.los.palotes","pepito\\.(.*)\\.palotes","$1"));
-		assertEquals("pepito.palotes", MessageDataExtractionUtils.regexTransform("pepito.los.palotes","(.*)\\.(.*)\\.(.*)","$1.$3"));
-		assertEquals("pepito.eldelos.palotes", MessageDataExtractionUtils.regexTransform("pepito.los.palotes","(.*)\\.(.*)\\.(.*)","$1.eldelos.$3"));
-		assertEquals("pepito.eldelos.palotes", MessageDataExtractionUtils.evalStringExpression("{ADDRESS|(.*)\\.(.*)\\.(.*)|$1.eldelos.$3}","pepito.los.palotes",null));
 		
-		assertEquals("address", MessageDataExtractionUtils.evalStringExpression(
-				"{ADDRESS|.+\\.([^\\.]*)$|$1}", 
-				"super.fancy.address", 
-				null
-			));
+		assertEquals("a",new RegexTransform("(.*)","$1").eval("a"));
+		assertEquals("aa", new RegexTransform("(.*)","$1$1").eval("a"));
+		assertEquals("a-a", new RegexTransform("(.*)","$1-$1").eval("a"));
+		assertEquals("los", new RegexTransform("pepito\\.(.*)\\.palotes","$1").eval("pepito.los.palotes"));
+		assertEquals("pepito.palotes", new RegexTransform("(.*)\\.(.*)\\.(.*)","$1.$3").eval("pepito.los.palotes"));
+		assertEquals("pepito.eldelos.palotes", new RegexTransform("(.*)\\.(.*)\\.(.*)","$1.eldelos.$3").eval("pepito.los.palotes"));
+		assertEquals("pepito.eldelos.palotes", new RegexTransform("(.*)\\.(.*)\\.(.*)","$1.eldelos.$3").eval("pepito.los.palotes"));
+		// Additional test scenarios for regex transformations
+		assertEquals("", new RegexTransform( "(.*)", "$1").eval("")); // Empty string
+		assertEquals("123", new RegexTransform(".*?(\\d+).*", "$1").eval("abc123def")); // Extract numbers
+		assertEquals("hello-world", new RegexTransform("(\\w+)\\s+(\\w+)", "$1-$2").eval("hello world")); // Word replacement
+		assertEquals("original", new RegexTransform("nonmatching", "replacement").eval("original")); // Non-matching pattern
+				
+	}
+	@Test
+	public void testBucketExtractors() throws Exception {
+
+		assertEquals("address", new BucketExtractor(
+				"{ADDRESS|.+\\.([^\\.]*)$|$1}") 
+				.extract("super.fancy.address",null)
+			);
 		
 		String dict = "{"+
 		"name:pepito,"+
@@ -97,16 +116,14 @@ public class DataPersistorPluginTest {
 		"addresses:[\"calle de la piruleta 33\",\"rue de la fua\"]"+
 		"}";
 		//assertEquals("pepito", MessageDataExtractionUtils.evalStringExpression("{BODY|$.name}",null,dict));
-		assertEquals("pepito-lospalotes", MessageDataExtractionUtils.evalStringExpression("{BODY|$.name}-{BODY|$.surname}",null,dict));
-		assertEquals("calle de la piruleta 33", MessageDataExtractionUtils.evalStringExpression("{BODY|$.addresses[0]}",null,dict));
-		assertEquals("{BODY|$.addresses[3]}", MessageDataExtractionUtils.evalStringExpression("{BODY|$.addresses[3]}",null,dict));
-		
-		// Additional test scenarios for regex transformations
-		assertEquals("", MessageDataExtractionUtils.regexTransform("", "(.*)", "$1")); // Empty string
-		assertEquals("123", MessageDataExtractionUtils.regexTransform("abc123def", ".*?(\\d+).*", "$1")); // Extract numbers
-		assertEquals("hello-world", MessageDataExtractionUtils.regexTransform("hello world", "(\\w+)\\s+(\\w+)", "$1-$2")); // Word replacement
-		//assertEquals("test", MessageDataExtractionUtils.regexTransform("test123", "(\\w+)\\d+", "$1")); // Remove numbers
-		assertEquals("original", MessageDataExtractionUtils.regexTransform("original", "nonmatching", "replacement")); // Non-matching pattern
+		assertEquals("pepito-lospalotes", new BucketExtractor("{BODY|$.name}-{BODY|$.surname}").extract("",jsonParser.parse(dict)));
+		assertEquals("calle de la piruleta 33", new BucketExtractor("{BODY|$.addresses[0]}").extract("",jsonParser.parse(dict)));
+		assertThrows(Exception.class, new org.junit.function.ThrowingRunnable() {
+			@Override
+			public void run() throws Throwable {
+				new BucketExtractor("{BODY|$.addresses[3]}").extract("", jsonParser.parse(dict));
+			}
+		});
 		
 		// Additional test scenarios for JSON path extraction
 		String complexDict = "{" +
@@ -123,38 +140,58 @@ public class DataPersistorPluginTest {
 			"}" +
 		"}";
 		
-		assertEquals("John", MessageDataExtractionUtils.evalStringExpression("{BODY|$.user.profile.firstName}", null, complexDict));
-		assertEquals("30", MessageDataExtractionUtils.evalStringExpression("{BODY|$.user.profile.age}", null, complexDict));
-		assertEquals("123 Main St", MessageDataExtractionUtils.evalStringExpression("{BODY|$.user.profile.addresses[0].street}", null, complexDict));
-		assertEquals("Boston", MessageDataExtractionUtils.evalStringExpression("{BODY|$.user.profile.addresses[1].city}", null, complexDict));
+		assertEquals("John", new BucketExtractor("{BODY|$.user.profile.firstName}").extract("",jsonParser.parse(complexDict)));
+		assertEquals("30", new BucketExtractor("{BODY|$.user.profile.age}").extract("",jsonParser.parse(complexDict)));
+		assertEquals("123 Main St", new BucketExtractor("{BODY|$.user.profile.addresses[0].street}").extract("",jsonParser.parse(complexDict)));
+		assertEquals("Boston", new BucketExtractor("{BODY|$.user.profile.addresses[1].city}").extract("",jsonParser.parse(complexDict)));
 		
 		// Test combined expressions
-		assertEquals("John-Doe-address", MessageDataExtractionUtils.evalStringExpression(
-			"{BODY|$.user.profile.firstName}-{BODY|$.user.profile.lastName}-{ADDRESS|.+\\.([^\\.]*)$|$1}", 
-			"super.fancy.address", 
-			complexDict
-		));
+		assertEquals("John-Doe-address", new BucketExtractor(
+			"{BODY|$.user.profile.firstName}-{BODY|$.user.profile.lastName}-{ADDRESS|.+\\.([^\\.]*)$|$1}"
+		).extract("super.fancy.address",jsonParser.parse(complexDict)));
 		
 		// Test non-existent paths
-		assertEquals("{BODY|$.user.profile.nonexistent}", 
-			MessageDataExtractionUtils.evalStringExpression("{BODY|$.user.profile.nonexistent}", null, complexDict));
-		assertEquals("{BODY|$.user.profile.addresses[5]}", 
-			MessageDataExtractionUtils.evalStringExpression("{BODY|$.user.profile.addresses[5]}", null, complexDict));
+		assertThrows(Exception.class, new org.junit.function.ThrowingRunnable() {
+			@Override
+			public void run() throws Throwable {
+				new BucketExtractor("{BODY|$.user.profile.nonexistent}").extract("",jsonParser.parse(complexDict));
+			}
+		});
+		
+		assertThrows(Exception.class, new org.junit.function.ThrowingRunnable() {
+			@Override
+			public void run() throws Throwable {
+				new BucketExtractor("{BODY|$.user.profile.addresses[5]}").extract("",jsonParser.parse(complexDict));
+			}
+		});
+	
 		
 		// Test with null dictionary
-		assertEquals("{BODY|$.name}", MessageDataExtractionUtils.evalStringExpression("{BODY|$.name}", null, null));
+		assertThrows(Exception.class, new org.junit.function.ThrowingRunnable() {
+			@Override
+			public void run() throws Throwable {
+				new BucketExtractor("{BODY|$.name}").extract("",null);
+			}
+		});
 		
 		// Test with empty dictionary
-		assertEquals("{BODY|$.name}", MessageDataExtractionUtils.evalStringExpression("{BODY|$.name}", null, "{}"));
+		assertThrows(Exception.class, new org.junit.function.ThrowingRunnable() {
+			@Override
+			public void run() throws Throwable {
+				new BucketExtractor("{BODY|$.name}").extract("",jsonParser.parse("{}"));
+			}
+		});
 		
 	}
 	
-	private void assertEequalsKV(List<Pair<String,String>> expected,List<Pair<String,String>> res)
+	private void assertEequalsKV(Map<String,String> expected,Map<String,String> res)
 	{
+		LOGGER.info("expected: "+expected.toString());
+		LOGGER.info("res: "+res.toString());
 		assertEquals(expected.size(),res.size());
-		for(Pair expectedPair:expected)
+		for(String expectedKey:expected.keySet())
 		{
-			boolean found = res.stream().anyMatch(p->p.getA().equals(expectedPair.getA()) && p.getB().equals(expectedPair.getB()));
+			boolean found = res.containsKey(expectedKey) && res.get(expectedKey).equals(expected.get(expectedKey));
 			
 			assertTrue(found);
 		}
@@ -185,32 +222,32 @@ public class DataPersistorPluginTest {
 				"}" +
 			"}";
 		{
-			List<Pair<String,String>> res =  MessageDataExtractionUtils.evalKVExpression("{BODY|$|$.user.profile.firstName|$.user.profile.lastName}", "", complexDict);
-			List<Pair<String,String>> expected = List.of(new Pair<String,String>("John","Doe"));
+			Map<String,String> res =  new KeyValueExtractor("BODY|$|$.user.profile.firstName|$.user.profile.lastName").extract(jsonParser.parse(complexDict));
+			Map<String,String> expected =  Map.of("John","Doe");
 			assertEequalsKV(expected,res);
 		}
 		
 		{
-			List<Pair<String,String>> res =  MessageDataExtractionUtils.evalKVExpression("{BODY|$|$.user.profile.roles[*]|true}", "", complexDict);
-			List<Pair<String,String>> expected = List.of(new Pair<String,String>("admin","true"),new Pair<String,String>("reader","true"));
+			Map<String,String> res =  new KeyValueExtractor("BODY|$|$.user.profile.roles[*]|true").extract(jsonParser.parse(complexDict));
+			Map<String,String> expected =  Map.of("admin","true", "reader","true");
 			assertEequalsKV(expected,res);	
 		}
 		
 		{
-			List<Pair<String,String>> res =  MessageDataExtractionUtils.evalKVExpression("{BODY|$|$.user.profile.roles[*]|$.user.profile.firstName}", "", complexDict);
-			List<Pair<String,String>> expected = List.of(new Pair<String,String>("admin","John"),new Pair<String,String>("reader","John"));
+			Map<String,String> res =  new KeyValueExtractor("BODY|$|$.user.profile.roles[*]|$.user.profile.firstName").extract(jsonParser.parse(complexDict));
+			Map<String,String> expected =  Map.of("admin","John", "reader","John");
 			assertEequalsKV(expected,res);	
 		}
 		
 		{
-			List<Pair<String,String>> res =  MessageDataExtractionUtils.evalKVExpression("{BODY|$|$.user.profile.tags[*].k|$.user.profile.tags[*].v}", "", complexDict);
-			List<Pair<String,String>> expected = List.of(new Pair<String,String>("a","1"),new Pair<String,String>("b","2"));
+			Map<String,String> res =  new KeyValueExtractor("BODY|$|$.user.profile.tags[*].k|$.user.profile.tags[*].v").extract(jsonParser.parse(complexDict));
+			Map<String,String> expected =  Map.of("a","1", "b","2");
 			assertEequalsKV(expected,res);	
 		}
 		
 		{
-			List<Pair<String,String>> res =  MessageDataExtractionUtils.evalKVExpression("{BODY|$|$.user.profile.tags2[*]}", "", complexDict);
-			List<Pair<String,String>> expected = List.of(new Pair<String,String>("a","1"),new Pair<String,String>("b","2"));
+			Map<String,String> res =  new KeyValueExtractor("BODY|$|$.user.profile.tags2[*]").extract(jsonParser.parse(complexDict));
+			Map<String,String> expected =  Map.of("a","1", "b","2");
 			assertEequalsKV(expected,res);	
 		}
 	}
@@ -223,18 +260,18 @@ public class DataPersistorPluginTest {
 			String format = "yyyy-MM-dd HH:mm:ss z";
 			SimpleDateFormat formatter =new SimpleDateFormat(format);
 			Date expected = formatter.parse(formatter.format(new Date()));
-			Date res =  MessageDataExtractionUtils.evalTimeExpression("BODY|$.date|"+format, "{'date':'"+formatter.format(expected)+"'}");
+			Date res =  new TimeExtractor("BODY|$.date|"+format).extract(jsonParser.parse("{'date':'"+formatter.format(expected)+"'}"));
 			assertEquals(expected.getTime(),res.getTime());
 		}
 		
 		{
 			Date expected = new Date();
-			Date res =  MessageDataExtractionUtils.evalTimeExpression("BODY|$.date|TIMESTAMP", "{'date':'"+expected.getTime()+"'}");
+			Date res =  new TimeExtractor("BODY|$.date|TIMESTAMP").extract(jsonParser.parse("{'date':'"+expected.getTime()+"'}"));
 			assertEquals(expected.getTime(),res.getTime());
 		}
 		{
 			Date expected = new Date();
-			Date res =  MessageDataExtractionUtils.evalTimeExpression("BODY|$.date|TIMESTAMP", "{'date':"+expected.getTime()+"}");
+			Date res =  new TimeExtractor("BODY|$.date|TIMESTAMP").extract(jsonParser.parse("{'date':"+expected.getTime()+"}"));
 			assertEquals(expected.getTime(),res.getTime());
 		}
 		
@@ -267,41 +304,41 @@ public class DataPersistorPluginTest {
 			"}";
 		{
 			
-			boolean  res =  MessageDataExtractionUtils.evalAcceptorExpression(".*|$|OR","this.is.a.super.complex.topic", complexDict);
+			boolean  res =  new MessageFilter(".*|$|OR").eval("this.is.a.super.complex.topic", jsonParser.parse(complexDict));
 			assertTrue(res);
 		}
 		
 		{
 			
-			boolean  res =  MessageDataExtractionUtils.evalAcceptorExpression(".*|$|AND","this.is.a.super.complex.topic", complexDict);
+			boolean  res =  new MessageFilter(".*|$|AND").eval("this.is.a.super.complex.topic", jsonParser.parse(complexDict));
 			assertTrue(res);
 		}
 		
 		{
 			
-			boolean  res =  MessageDataExtractionUtils.evalAcceptorExpression(".*|$.pepe|AND","this.is.a.super.complex.topic", complexDict);
+			boolean  res =  new MessageFilter(".*|$.pepe|AND").eval("this.is.a.super.complex.topic", jsonParser.parse(complexDict));
 			assertFalse(res);
 		}
 		
 		{
 			
-			boolean  res =  MessageDataExtractionUtils.evalAcceptorExpression(".*|$.pepe|OR","this.is.a.super.complex.topic", complexDict);
+			boolean  res =  new MessageFilter(".*|$.pepe|OR").eval("this.is.a.super.complex.topic", jsonParser.parse(complexDict));
 			assertTrue(res);
 		}
 		
 		{
 			
-			boolean  res =  MessageDataExtractionUtils.evalAcceptorExpression("topic|$.[?(@.age<50)]|OR","this.is.a.super.complex.topic", "{age:30}");
+			boolean  res =  new MessageFilter("topic|$.[?(@.age<50)]|OR").eval("this.is.a.super.complex.topic", jsonParser.parse("{age:30}"));
 			assertTrue(res);
 		}
 		{
 			
-			boolean  res =  MessageDataExtractionUtils.evalAcceptorExpression("topic|$.[?(@.age<50)]|OR","this.is.a.super.complex.topic", "{age:50}");
+			boolean  res =  new MessageFilter("topic|$.[?(@.age<50)]|OR").eval("this.is.a.super.complex.topic", jsonParser.parse("{age:50}"));
 			assertFalse(res);
 		}
 	}
 
-	@Test
+	//@Test
 	public void test() throws Exception {
 		/*
 		 * docker run \ -p 8086:8086 \ -v "$PWD/data:/var/lib/influxdb2" \ -v

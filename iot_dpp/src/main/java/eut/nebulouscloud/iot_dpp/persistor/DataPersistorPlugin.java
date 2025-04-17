@@ -1,6 +1,5 @@
 package eut.nebulouscloud.iot_dpp.persistor;
 
-import java.lang.annotation.Annotation;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.LinkedList;
@@ -16,12 +15,10 @@ import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.apache.activemq.artemis.core.server.LargeServerMessage;
 import org.apache.activemq.artemis.core.server.ServerSession;
 import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerMessagePlugin;
-import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerPlugin;
 import org.apache.activemq.artemis.core.transaction.Transaction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.influxdb.annotations.Measurement;
 import com.influxdb.client.InfluxDBClient;
 import com.influxdb.client.InfluxDBClientFactory;
 import com.influxdb.client.WriteApi;
@@ -29,8 +26,6 @@ import com.influxdb.client.domain.Ready.StatusEnum;
 import com.influxdb.client.domain.WritePrecision;
 import com.influxdb.client.write.Point;
 import com.jayway.jsonpath.JsonPath;
-
-import eut.nebulouscloud.auth.KeycloackAuthPlugin;
 
 public class DataPersistorPlugin implements ActiveMQServerMessagePlugin {
 	private static final Logger LOGGER = LoggerFactory.getLogger(DataPersistorPlugin.class);
