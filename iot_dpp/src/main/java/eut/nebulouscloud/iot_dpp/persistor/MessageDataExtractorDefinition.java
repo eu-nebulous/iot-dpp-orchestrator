@@ -1,9 +1,12 @@
 package eut.nebulouscloud.iot_dpp.persistor;
 
-public class MessageTransformerDefinition {
+import java.util.List;
+
+public class MessageDataExtractorDefinition {
 	String filterExpression;
 	String bucketExpression;
 	String measurementExpression;
-	String[] tagExpressions;
+	List<String> tagExpressions;
+	List<String> fieldExpressions;
 	String dateTimeExpression;
 }

@@ -38,14 +38,16 @@ public class TimeExtractor {
 	
 	public Date extract(DocumentContext bodyJsonpath) throws Exception {		
 		List res = bodyJsonpath.read(timeJsonpathExpression);
-		if (res != null && !res.isEmpty()) {
+		if (res != null && !res.isEmpty() && res.get(0)!=null) {
 			if (dateFormatter == null) {
 				return new Date(Long.parseLong(res.get(0).toString()));
 			} else {
 				return dateFormatter.parse(res.get(0).toString());
 			}
+		}else
+		{
+			throw new Exception("No valid timestamp found in the JSON path: " + timeJsonpathExpression + ". Body: " + bodyJsonpath.jsonString());
 		}
-		return null;
 	}
 	
 }

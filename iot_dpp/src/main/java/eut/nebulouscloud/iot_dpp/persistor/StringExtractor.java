@@ -9,7 +9,7 @@ import org.apache.activemq.artemis.api.core.Pair;
 
 import com.jayway.jsonpath.DocumentContext;
 
-public class BucketExtractor {
+public class StringExtractor {
 	static Pattern addresPattern = Pattern.compile("\\{ADDRESS\\|(.+)\\|(.+)\\}");
 	static Pattern bodyPattern = Pattern.compile("\\{BODY\\|([^}]+)\\}");
 	List<String> addressPatternPlaceholders = new LinkedList<String>();
@@ -17,7 +17,7 @@ public class BucketExtractor {
 	List<Pair<String,String>> bodyPatternPlaceholders = new LinkedList<Pair<String,String>>();
 	String expression;
 
-	public BucketExtractor(String expression) {
+	public StringExtractor(String expression) {
 		this.expression = expression;
 		Matcher addressPatternMatcher = addresPattern.matcher(expression);
 		while (addressPatternMatcher.find()) {

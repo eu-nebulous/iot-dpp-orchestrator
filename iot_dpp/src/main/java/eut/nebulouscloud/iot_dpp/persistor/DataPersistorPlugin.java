@@ -2,10 +2,12 @@ package eut.nebulouscloud.iot_dpp.persistor;
 
 import java.time.Instant;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.apache.activemq.artemis.api.core.ActiveMQBuffer;
 import org.apache.activemq.artemis.api.core.ActiveMQException;
@@ -24,8 +26,11 @@ import com.influxdb.client.InfluxDBClientFactory;
 import com.influxdb.client.WriteApi;
 import com.influxdb.client.domain.Ready.StatusEnum;
 import com.influxdb.client.domain.WritePrecision;
-import com.influxdb.client.write.Point;
+import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
+import com.jayway.jsonpath.ParseContext;
+
+import eut.nebulouscloud.iot_dpp.persistor.MessageDataExtractor.Point;
 
 public class DataPersistorPlugin implements ActiveMQServerMessagePlugin {
 	private static final Logger LOGGER = LoggerFactory.getLogger(DataPersistorPlugin.class);
@@ -34,6 +39,8 @@ public class DataPersistorPlugin implements ActiveMQServerMessagePlugin {
 	String influxDBToken;
 	String influxDBOrganization;
 	private DataPersistor persistor;
+	public List<MessageDataExtractor> dataExtractors = new LinkedList<MessageDataExtractor>();
+	private ParseContext parseContext = JsonPath.using(MessageDataExtractor.conf);
 
 	@Override
 	public void init(Map<String, String> properties) {
@@ -54,84 +61,57 @@ public class DataPersistorPlugin implements ActiveMQServerMessagePlugin {
 		new Thread(persistor).start();
 	}
 
-	private static String getBody(Message message)
-	{
+	private static String getBody(Message message) {
 		String body = message.getStringBody();
-		if(body==null)
-		{
+		if (body == null) {
 			try {
 				ActiveMQBuffer buf = message.toCore().getBodyBuffer();
-				
+
 				byte[] data = new byte[buf.writerIndex() - buf.readerIndex()];
 				buf.readFully(data);
 				body = new String(data);
 			} catch (Exception ex) {
-				LOGGER.error("cant get body",ex);
-				
+				LOGGER.error("cant get body", ex);
+
 			}
 		}
 		return body;
 	}
 
-	/**
-	 * https://restfulapi.net/json-jsonpath/
-	 * 
-	 * @param message
-	 * @param jsonPath
-	 * @return
-	 */
-	public static String extractData(Message message, String jsonPath) {
-		if (message instanceof LargeServerMessage) {
-			LOGGER.error("Can't extract data JSON body on LargeServerMessages");
-			return null;
-		}
-		
-		String body = getBody(message);
-
-
-		if (body == null) {
-			LOGGER.error(
-					String.format("Can't extract JSON body on message %s since body is null", message));
-			return null;
-		}
-
+	private void extractData(Message message) {
+		DocumentContext bodyJsonpath = null;
 		try {
-			return JsonPath.read(body, jsonPath).toString();
+			String body = getBody(message);
+			bodyJsonpath = parseContext.parse(body);
 		} catch (Exception ex) {
-			LOGGER.error(
-					String.format("Can't extract path %s from JSON body of message %s", jsonPath, body),
-					ex);
-			return null;
+			LOGGER.error("", ex);
 		}
 
+		for (MessageDataExtractor extractor : dataExtractors) {
+			try {
+				String address = message.getAddress();
+				address = address.replaceAll("\\\\", "");
+				Point p = extractor.extract(address, bodyJsonpath);
+				if (p != null) {
+					persistor.points.add(p);
+				}
+			} catch (Exception ex) {
+				LOGGER.error("", ex);
+			}
+		}
 	}
+
 	@Override
 	public void registered(ActiveMQServer server) {
 		// TODO Auto-generated method stub
 		ActiveMQServerMessagePlugin.super.registered(server);
 	}
 
-	
 	@Override
 	public void afterSend(ServerSession session, Transaction tx, Message message, boolean direct,
 			boolean noAutoCreateQueue, RoutingStatus result) throws ActiveMQException {
-		Point point = Point.measurement("temperature").addTag("location", "west").addField("value", extractData(message,"temperature"))
-				.time(Instant.now().toEpochMilli(), WritePrecision.MS);
-		persistor.points.add(point);
+		extractData(message);
 	}
-	
-	
-	
-	private Point processMessage(Message message)
-	{
-		String address = message.getAddress();
-		String body = getBody(message);
-		//return JsonPath.read(body, jsonPath).toString();
-		
-		
-		return null;
-	}
-	
 
 	class DataPersistor implements Runnable {
 
@@ -160,7 +140,16 @@ public class DataPersistorPlugin implements ActiveMQServerMessagePlugin {
 				try {
 					influxDBClient = InfluxDBClientFactory.create(influxDBHost, influxDBToken.toCharArray(),
 							influxDBOrganization);
+			
+					// Enable batch writes to get better performance.
+					/*
+					 * influxDBClient.enableBatch( BatchOptions.DEFAULTS .threadFactory(runnable ->
+					 * { Thread thread = new Thread(runnable); thread.setDaemon(true); return
+					 * thread; }) );
+					 */
+
 					writeAPI = influxDBClient.makeWriteApi();
+
 					try {
 						Thread.sleep(1000);
 					} catch (InterruptedException e) {
@@ -183,23 +172,38 @@ public class DataPersistorPlugin implements ActiveMQServerMessagePlugin {
 			return writeAPI;
 
 		}
+		Set<String> knownBuckets = new HashSet<String>();
 
+		private void checkBucketExists(String bucket)
+		{
+			if(knownBuckets.contains(bucket)) return;
+			
+				if(influxDBClient.getBucketsApi().findBucketByName(bucket)!=null) {
+					knownBuckets.add(bucket);
+				}else
+				{
+					String orgId = influxDBClient.getOrganizationsApi().findOrganizations().stream().filter(o->o.getName().equals(influxDBOrganization)).findFirst().get().getId();
+					influxDBClient.getBucketsApi().createBucket(bucket, orgId);
+					knownBuckets.add(bucket);
+				}
+			
+		}
+		
 		@Override
 		public void run() { // TODO Auto-generated method stub
 
 			while (true) {
 				WriteApi api = getWriteAPI();
-
-				while(!points.isEmpty())
-				{
+				while (!points.isEmpty()) {
 					try {
-					api.writePoint(points.remove(0));
-					}catch(Exception ex)
-					{
-						LOGGER.error("",ex);
+						Point p =  points.remove(0);
+						checkBucketExists(p.bucket);
+						api.writePoint(p.bucket,influxDBOrganization,p.point);
+					} catch (Exception ex) {
+						LOGGER.error("", ex);
 					}
 				}
-				try {					
+				try {
 					Thread.sleep(1000);
 				} catch (InterruptedException e) {
 					// TODO Auto-generated catch block

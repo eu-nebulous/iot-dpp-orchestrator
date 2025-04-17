@@ -4,18 +4,14 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.text.SimpleDateFormat;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.activemq.artemis.api.core.Pair;
 import org.apache.activemq.artemis.core.config.Configuration;
 import org.apache.activemq.artemis.core.config.impl.ConfigurationImpl;
 import org.apache.activemq.artemis.core.security.CheckType;
@@ -28,12 +24,13 @@ import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.testng.Assert.ThrowingRunnable;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.Option;
 import com.jayway.jsonpath.ParseContext;
+
+import io.jsonwebtoken.lang.Arrays;
 
 
 public class DataPersistorPluginTest {
@@ -84,265 +81,12 @@ public class DataPersistorPluginTest {
 		return server;
 	}
 	
-	@Test
-	public void testExtractors() throws Exception {
-		
-		
-		assertEquals("a",new RegexTransform("(.*)","$1").eval("a"));
-		assertEquals("aa", new RegexTransform("(.*)","$1$1").eval("a"));
-		assertEquals("a-a", new RegexTransform("(.*)","$1-$1").eval("a"));
-		assertEquals("los", new RegexTransform("pepito\\.(.*)\\.palotes","$1").eval("pepito.los.palotes"));
-		assertEquals("pepito.palotes", new RegexTransform("(.*)\\.(.*)\\.(.*)","$1.$3").eval("pepito.los.palotes"));
-		assertEquals("pepito.eldelos.palotes", new RegexTransform("(.*)\\.(.*)\\.(.*)","$1.eldelos.$3").eval("pepito.los.palotes"));
-		assertEquals("pepito.eldelos.palotes", new RegexTransform("(.*)\\.(.*)\\.(.*)","$1.eldelos.$3").eval("pepito.los.palotes"));
-		// Additional test scenarios for regex transformations
-		assertEquals("", new RegexTransform( "(.*)", "$1").eval("")); // Empty string
-		assertEquals("123", new RegexTransform(".*?(\\d+).*", "$1").eval("abc123def")); // Extract numbers
-		assertEquals("hello-world", new RegexTransform("(\\w+)\\s+(\\w+)", "$1-$2").eval("hello world")); // Word replacement
-		assertEquals("original", new RegexTransform("nonmatching", "replacement").eval("original")); // Non-matching pattern
-				
-	}
-	@Test
-	public void testBucketExtractors() throws Exception {
+	
 
-		assertEquals("address", new BucketExtractor(
-				"{ADDRESS|.+\\.([^\\.]*)$|$1}") 
-				.extract("super.fancy.address",null)
-			);
-		
-		String dict = "{"+
-		"name:pepito,"+
-		"surname:lospalotes,"+
-		"addresses:[\"calle de la piruleta 33\",\"rue de la fua\"]"+
-		"}";
-		//assertEquals("pepito", MessageDataExtractionUtils.evalStringExpression("{BODY|$.name}",null,dict));
-		assertEquals("pepito-lospalotes", new BucketExtractor("{BODY|$.name}-{BODY|$.surname}").extract("",jsonParser.parse(dict)));
-		assertEquals("calle de la piruleta 33", new BucketExtractor("{BODY|$.addresses[0]}").extract("",jsonParser.parse(dict)));
-		assertThrows(Exception.class, new org.junit.function.ThrowingRunnable() {
-			@Override
-			public void run() throws Throwable {
-				new BucketExtractor("{BODY|$.addresses[3]}").extract("", jsonParser.parse(dict));
-			}
-		});
-		
-		// Additional test scenarios for JSON path extraction
-		String complexDict = "{" +
-			"user: {" +
-				"profile: {" +
-					"firstName: John," +
-					"lastName: Doe," +
-					"age: 30," +
-					"addresses: [" +
-						"{street: '123 Main St', city: 'New York'}," +
-						"{street: '456 Oak Ave', city: 'Boston'}" +
-					"]" +
-				"}" +
-			"}" +
-		"}";
-		
-		assertEquals("John", new BucketExtractor("{BODY|$.user.profile.firstName}").extract("",jsonParser.parse(complexDict)));
-		assertEquals("30", new BucketExtractor("{BODY|$.user.profile.age}").extract("",jsonParser.parse(complexDict)));
-		assertEquals("123 Main St", new BucketExtractor("{BODY|$.user.profile.addresses[0].street}").extract("",jsonParser.parse(complexDict)));
-		assertEquals("Boston", new BucketExtractor("{BODY|$.user.profile.addresses[1].city}").extract("",jsonParser.parse(complexDict)));
-		
-		// Test combined expressions
-		assertEquals("John-Doe-address", new BucketExtractor(
-			"{BODY|$.user.profile.firstName}-{BODY|$.user.profile.lastName}-{ADDRESS|.+\\.([^\\.]*)$|$1}"
-		).extract("super.fancy.address",jsonParser.parse(complexDict)));
-		
-		// Test non-existent paths
-		assertThrows(Exception.class, new org.junit.function.ThrowingRunnable() {
-			@Override
-			public void run() throws Throwable {
-				new BucketExtractor("{BODY|$.user.profile.nonexistent}").extract("",jsonParser.parse(complexDict));
-			}
-		});
-		
-		assertThrows(Exception.class, new org.junit.function.ThrowingRunnable() {
-			@Override
-			public void run() throws Throwable {
-				new BucketExtractor("{BODY|$.user.profile.addresses[5]}").extract("",jsonParser.parse(complexDict));
-			}
-		});
-	
-		
-		// Test with null dictionary
-		assertThrows(Exception.class, new org.junit.function.ThrowingRunnable() {
-			@Override
-			public void run() throws Throwable {
-				new BucketExtractor("{BODY|$.name}").extract("",null);
-			}
-		});
-		
-		// Test with empty dictionary
-		assertThrows(Exception.class, new org.junit.function.ThrowingRunnable() {
-			@Override
-			public void run() throws Throwable {
-				new BucketExtractor("{BODY|$.name}").extract("",jsonParser.parse("{}"));
-			}
-		});
-		
-	}
-	
-	private void assertEequalsKV(Map<String,String> expected,Map<String,String> res)
-	{
-		LOGGER.info("expected: "+expected.toString());
-		LOGGER.info("res: "+res.toString());
-		assertEquals(expected.size(),res.size());
-		for(String expectedKey:expected.keySet())
-		{
-			boolean found = res.containsKey(expectedKey) && res.get(expectedKey).equals(expected.get(expectedKey));
-			
-			assertTrue(found);
-		}
-	}
-	
 	@Test
-	public void testExtractors2() throws Exception {
-		String complexDict = "{" +
-				"user: {" +
-					"profile: {" +
-						"firstName: John," +
-						"lastName: Doe," +
-						"age: 30," +
-						"roles: [\"admin\",\"reader\"]," +
-						"tags: [" +
-						"{k: 'a', v: '1'}," +
-						"{k: 'b', v: '2'}" +
-						"],"+
-						"tags2: [" +
-						"{'a': '1'}," +
-						"{'b': '2'}" +
-						"],"+
-						"addresses: [" +
-							"{street: '123 Main St', city: 'New York'}," +
-							"{street: '456 Oak Ave', city: 'Boston'}" +
-						"]" +
-					"}" +
-				"}" +
-			"}";
-		{
-			Map<String,String> res =  new KeyValueExtractor("BODY|$|$.user.profile.firstName|$.user.profile.lastName").extract(jsonParser.parse(complexDict));
-			Map<String,String> expected =  Map.of("John","Doe");
-			assertEequalsKV(expected,res);
-		}
-		
-		{
-			Map<String,String> res =  new KeyValueExtractor("BODY|$|$.user.profile.roles[*]|true").extract(jsonParser.parse(complexDict));
-			Map<String,String> expected =  Map.of("admin","true", "reader","true");
-			assertEequalsKV(expected,res);	
-		}
-		
-		{
-			Map<String,String> res =  new KeyValueExtractor("BODY|$|$.user.profile.roles[*]|$.user.profile.firstName").extract(jsonParser.parse(complexDict));
-			Map<String,String> expected =  Map.of("admin","John", "reader","John");
-			assertEequalsKV(expected,res);	
-		}
-		
-		{
-			Map<String,String> res =  new KeyValueExtractor("BODY|$|$.user.profile.tags[*].k|$.user.profile.tags[*].v").extract(jsonParser.parse(complexDict));
-			Map<String,String> expected =  Map.of("a","1", "b","2");
-			assertEequalsKV(expected,res);	
-		}
-		
-		{
-			Map<String,String> res =  new KeyValueExtractor("BODY|$|$.user.profile.tags2[*]").extract(jsonParser.parse(complexDict));
-			Map<String,String> expected =  Map.of("a","1", "b","2");
-			assertEequalsKV(expected,res);	
-		}
-	}
-	
-	
-	@Test
-	public void testTimeExtractor() throws Exception {
-	
-		{
-			String format = "yyyy-MM-dd HH:mm:ss z";
-			SimpleDateFormat formatter =new SimpleDateFormat(format);
-			Date expected = formatter.parse(formatter.format(new Date()));
-			Date res =  new TimeExtractor("BODY|$.date|"+format).extract(jsonParser.parse("{'date':'"+formatter.format(expected)+"'}"));
-			assertEquals(expected.getTime(),res.getTime());
-		}
-		
-		{
-			Date expected = new Date();
-			Date res =  new TimeExtractor("BODY|$.date|TIMESTAMP").extract(jsonParser.parse("{'date':'"+expected.getTime()+"'}"));
-			assertEquals(expected.getTime(),res.getTime());
-		}
-		{
-			Date expected = new Date();
-			Date res =  new TimeExtractor("BODY|$.date|TIMESTAMP").extract(jsonParser.parse("{'date':"+expected.getTime()+"}"));
-			assertEquals(expected.getTime(),res.getTime());
-		}
-		
-	}
-	
-	
-	@Test
-	public void testAcceptorExpression() throws Exception {
-		String complexDict = "{" +
-				"user: {" +
-					"profile: {" +
-						"firstName: John," +
-						"lastName: Doe," +
-						"age: 30," +
-						"roles: [\"admin\",\"reader\"]," +
-						"tags: [" +
-						"{k: 'a', v: '1'}," +
-						"{k: 'b', v: '2'}" +
-						"],"+
-						"tags2: [" +
-						"{'a': '1'}," +
-						"{'b': '2'}" +
-						"],"+
-						"addresses: [" +
-							"{street: '123 Main St', city: 'New York'}," +
-							"{street: '456 Oak Ave', city: 'Boston'}" +
-						"]" +
-					"}" +
-				"}" +
-			"}";
-		{
-			
-			boolean  res =  new MessageFilter(".*|$|OR").eval("this.is.a.super.complex.topic", jsonParser.parse(complexDict));
-			assertTrue(res);
-		}
-		
-		{
-			
-			boolean  res =  new MessageFilter(".*|$|AND").eval("this.is.a.super.complex.topic", jsonParser.parse(complexDict));
-			assertTrue(res);
-		}
-		
-		{
-			
-			boolean  res =  new MessageFilter(".*|$.pepe|AND").eval("this.is.a.super.complex.topic", jsonParser.parse(complexDict));
-			assertFalse(res);
-		}
-		
-		{
-			
-			boolean  res =  new MessageFilter(".*|$.pepe|OR").eval("this.is.a.super.complex.topic", jsonParser.parse(complexDict));
-			assertTrue(res);
-		}
-		
-		{
-			
-			boolean  res =  new MessageFilter("topic|$.[?(@.age<50)]|OR").eval("this.is.a.super.complex.topic", jsonParser.parse("{age:30}"));
-			assertTrue(res);
-		}
-		{
-			
-			boolean  res =  new MessageFilter("topic|$.[?(@.age<50)]|OR").eval("this.is.a.super.complex.topic", jsonParser.parse("{age:50}"));
-			assertFalse(res);
-		}
-	}
-
-	//@Test
 	public void test() throws Exception {
 		/*
-		 * docker run \ -p 8086:8086 \ -v "$PWD/data:/var/lib/influxdb2" \ -v
-		 * "$PWD/config:/etc/influxdb2" \ influxdb:2
+		 * docker run \ -p 8086:8086 \ -v "$PWD/data:/var/lib/influxdb2" \ -v "$PWD/config:/etc/influxdb2" \ influxdb:2
 		 * 
 		 * lK-oWPGUJ25629q5VIFJiX_Y_sZdn3IAeF2YXyLS2siiBMQRTOunkhPOOl55brbO-
 		 * CaIOFWVSzqfd1RJxQkWgA== admin adminadmin
@@ -355,16 +99,41 @@ public class DataPersistorPluginTest {
 		config.put("influxDB.token",
 				"V6GrKrjnVXC9QZbiyp8KhoSs7z_QLl0uUpxoGUGKOjN0wqAUsv5VZTlgMd4Hv3toCfJ9dM1DTiEG0b0EmZBgjQ==");
 		dataPersistorPlugin.init(config);
+		
+		{
+			MessageDataExtractorDefinition extractor = new MessageDataExtractorDefinition();
+			extractor.filterExpression=".*\\.vehicles\\..*\\.location$|$|AND";
+			extractor.bucketExpression="vehicle_locations";
+			//extractor.dateTimeExpression="BODY|$.date|TIMESTAMP";
+			extractor.measurementExpression="locationv2";
+			extractor.fieldExpressions = List.of("BODY|$|latitude|$.lat","BODY|$|longitude|$.lon");
+			extractor.tagExpressions = List.of("BODY|$|latitude|$.lat","BODY|$|longitude|$.lon");
+			extractor.tagExpressions = List.of("ADDRESS|.*\\.vehicles\\.(.*)\\.location$|vid:$1");
+			dataPersistorPlugin.dataExtractors.add(new MessageDataExtractor(extractor));
+		}
+		{
+			MessageDataExtractorDefinition extractor = new MessageDataExtractorDefinition();
+			extractor.filterExpression=".*\\.vehicles\\..*\\.location$|$|AND";
+			extractor.bucketExpression="vehicle_locations";
+			//extractor.dateTimeExpression="BODY|$.date|TIMESTAMP";
+			extractor.measurementExpression="locationv2";
+			extractor.fieldExpressions = List.of("BODY|$|latitude|$.lat","BODY|$|longitude|$.lon");
+			//extractor.tagExpressions = List.of("ADDRESS|.*\\.vehicles\\.(.*)\\.location$|$1");
+			dataPersistorPlugin.dataExtractors.add(new MessageDataExtractor(extractor));
+			}
 		EmbeddedActiveMQ broker = createActiveMQBroker(61616, dataPersistorPlugin);
 		ObjectMapper om = new ObjectMapper();
 		IMqttClient publisher = new MqttClient("tcp://localhost:61616", "publisher");
 		publisher.connect();
 
 		while (true) {
-			MqttMessage message = new MqttMessage(om.writeValueAsString(Map.of("temperature", 22)).getBytes());
+			Map<String,Object> record = new HashMap<String, Object>();
+			record.put("lat", 10.0);
+			record.put("lon", 2.0);
+			MqttMessage message = new MqttMessage(om.writeValueAsString(record).getBytes());
 			message.setQos(2);
-			publisher.publish("a", message);
-			Thread.sleep(1000);
+			publisher.publish("data.vehicles.LX23.location", message);
+			Thread.sleep(2000);
 			LOGGER.info("Publish");
 		}
 
