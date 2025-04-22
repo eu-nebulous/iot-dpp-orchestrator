@@ -115,7 +115,7 @@ public class DataPersistorPluginTest {
 			MessageDataExtractorDefinition extractor = new MessageDataExtractorDefinition();
 			extractor.filterExpression=".*\\.vehicles\\..*\\.location$|$|AND";
 			extractor.bucketExpression="vehicle_locations";
-			//extractor.dateTimeExpression="BODY|$.date|TIMESTAMP";
+			extractor.dateTimeExpression="BODY|$.date|TIMESTAMP";
 			extractor.measurementExpression="locationv2";
 			extractor.fieldExpressions = List.of("BODY|$|latitude|$.lat","BODY|$|longitude|$.lon");
 			//extractor.tagExpressions = List.of("ADDRESS|.*\\.vehicles\\.(.*)\\.location$|$1");
