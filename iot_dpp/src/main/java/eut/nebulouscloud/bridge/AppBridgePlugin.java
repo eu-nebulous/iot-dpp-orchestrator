@@ -31,7 +31,7 @@ public class AppBridgePlugin extends NebulOuSBridge {
 		}
 
 		try {
-			LOGGER.info("Adding static connector to app '{}' using address '{}'", appId, controlPlaneBrokerAddress);
+			LOGGER.info("Adding static connector to app '{}' using address '{}'", appId, controlPlaneBrokerAddress);			
 			server.getActiveMQServerControl().addConnector(connectorName, controlPlaneBrokerAddress);
 		} catch (Exception e) {
 			LOGGER.error("Failed to register static connector to app '{}' using address '{}': {}", appId,

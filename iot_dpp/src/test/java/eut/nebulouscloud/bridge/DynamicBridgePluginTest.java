@@ -42,7 +42,7 @@ class DynamicBridgePluginTest {
 	static int QueuesMonitoringProcesQueryIntervalSeconds = 3;
 	ObjectMapper om = new ObjectMapper();
 
-	private EmbeddedActiveMQ createControlPlaneBroker(String nodeName, int port) throws Exception {
+	private EmbeddedActiveMQ createControlPlaneBroker(String nodeName, int port, int appClusterPort) throws Exception {
 		Configuration config = new ConfigurationImpl();
 		config.setName(nodeName);
 		String foldersRoot = "data/" + new Date().getTime() + "/data_" + port;
@@ -72,6 +72,7 @@ class DynamicBridgePluginTest {
 
 		// config.addAcceptorConfiguration("amqp", "amqp://localhost:" + port);
 		ControlPlaneBridgePlugin dbp = new ControlPlaneBridgePlugin();
+		dbp.init(Map.of("APP_BROKER_PORT",""+appClusterPort));
 		config.getBrokerPlugins().add(dbp);
 		Map<String, Set<Role>> roles = new HashMap<String, Set<Role>>();
 		roles.put("#", Set.of(new Role("admin", true, true, true, true, true, true, true, true, true, true),
@@ -102,7 +103,7 @@ class DynamicBridgePluginTest {
 		return server;
 	}
 
-	private EmbeddedActiveMQ createAppClusterBroker(String nodeName, int port, int controlPlanePort, String appID,
+	private EmbeddedActiveMQ createAppClusterBroker(String nodeName, int port, String controlPlaneAddress, String appID,
 			String appPwd) throws Exception {
 		Configuration config = new ConfigurationImpl();
 		config.setName(nodeName);
@@ -145,7 +146,7 @@ class DynamicBridgePluginTest {
 		Map<String, String> params = new HashMap<String, String>();
 		params.put("APPLICATION_ID", appID);
 		params.put("NEBULOUS_MESSAGE_BRIDGE_PASSWORD", appPwd);
-		params.put("NEBULOUS_CONTROL_PLANE_BROKER_ADDRESS", "localhost:" + controlPlanePort);
+		params.put("NEBULOUS_CONTROL_PLANE_BROKER_ADDRESS",controlPlaneAddress );
 		params.put("APPLICATION_ID", appID);
 		dbp.init(params);
 		config.getBrokerPlugins().add(dbp);
@@ -191,7 +192,7 @@ class DynamicBridgePluginTest {
 			EmbeddedActiveMQ broker = null;
 			NebulousCoreMessageBrokerLocalStore controlPlaneMessageStore = new NebulousCoreMessageBrokerLocalStore();
 			int controlPlanePort = 3355;
-			broker = createControlPlaneBroker("test-server", controlPlanePort);
+			broker = createControlPlaneBroker("test-server", controlPlanePort,-1);
 
 			LOGGER.info("Starting controlPlaneClient");
 			Consumer controlPlaneConsummer = new Consumer("monitoring", "eu.#", new Handler() {
@@ -201,6 +202,10 @@ class DynamicBridgePluginTest {
 					controlPlaneMessageStore.onMessage(key, address, body, message, context);
 				}
 			}, true, true);
+			
+			
+			
+			
 			Publisher controlPlaneDefinePub = new Publisher("controlPlanePublisher",
 					"eu.nebulouscloud.exn.sal.cluster.define", true, true);
 			Publisher controlPlaneMetricModelPub = new Publisher("controlPlanePublisherB",
@@ -216,16 +221,18 @@ class DynamicBridgePluginTest {
 			String jsonString = "{\"name\":\"11461-9\",\"master-node\":\"m11461-9-master\",\"nodes\":[{\"nodeName\":\"m11461-9-master\",\"nodeCandidateId\":\"8a7484bf912bf07c01913683e4c528e4\",\"cloudId\":\"uio-openstack-optimizer\"},{\"nodeName\":\"n11461-9-dummy-app-worker-1-1\",\"nodeCandidateId\":\"8a7484bf912bf07c01913683e4c528e4\",\"cloudId\":\"uio-openstack-optimizer\"},{\"nodeName\":\"n11461-9-dummy-app-controller-1-1\",\"nodeCandidateId\":\"8a7484bf912bf07c01913683e4c528e4\",\"cloudId\":\"uio-openstack-optimizer\"}],\"env-var\":{\"NEBULOUS_CONTROL_PLANE_PASSWORD\":\""
 					+ NEBULOUS_CONTROL_PLANE_PASSWORD + "\",     \"APPLICATION_ID\":\"" + APP_ID
 					+ "\",\"BROKER_ADDRESS\":\"158.37.63.86\",\"ACTIVEMQ_HOST\":\"158.37.63.86\",\"BROKER_PORT\":\"32754\",\"ACTIVEMQ_PORT\":\"32754\",\"ONM_IP\":\"158.39.201.249\",\"ONM_URL\":\"https://onm.cd.nebulouscloud.eu\",\"AMPL_LICENSE\":\"NjYxZTQzNDQ5ODE2NDczZWIzNDIwNDc2NzZlZjI5Mzc1MjQ0MDUyMGM3MzczYzI5MTg1ODBjNWFmNzBmMzZiN2U3YWYxNzZjYTY2NjQyYTZjMWYzYzFiNjQwNmFlYTgxMTRiZjhhNDg5ZjQ0OGJjZGIyYTc2MDYzNzNiMjNiMTdjNWQ4ZjlhMjg2MjcyYzg4ZjIxOWZjZWZjMTY0MzIxMmU2ZWFjZTY5M2EzMDliYjNlMzBkN2UzNTI3MjA3OTgxZTBhMjNhNWNkOGIzYjcyOGUwZTc2ZWJiZDQwMjNhZTZiNGJkZmFiYmY1MDdkZTJlODM0M2UyNmNjNDc4NjlhNjQ0ZmZkODYxZmQzNjE0ZmVmYTJkYmZhNzI0YmMyODU3MTFmM2Q1Zjg3M2IyOTk0ODViZGNlOTBiYTRlNzc1YjQwMjI1MTI3MzIzNTBlYzZhNjExOGI4NjkyNmUwMDhjNjg1OTQwNjAyYjA5NzhlYzAxMjlmY2Q4NzM0ZDhjNGM2NDIwYmQ4MzE4OWU0NWM0MTk1ZWE4MzMxMzI0NjE4ZjBjN2RlYTViMTk0MTQ0MTJjN2MzMTNiOTIzMmQ4MTVlMGIxZDYzZjYxY2M0MWM1MzIzMDdkOTBiYjkwMWMyYTM0NTZhMWU0MGQ0OTkzOTAxMWEwMTIwMjEwYzNkYWE1YjNlN2YzZTk4ZGNhMDRmZTgyNDA3ZDc4MzQ0NGIzODcwMGU1MzdlNGJkOWI3MmY3MGY1NDQwZGM4YmE1OWE5MjU1YzJlMWM0OGRmYWM2ZTAwNmE5MGZkMzI1ODYwYzVkMzFkNDRlZTBhNTZjZTJlNTM2OWM3MTMzOTE4NWNhZjAxMWIxNzY2NGE3YTRjNWRhZjM5MjMxM2Q4YWUxODdmZTI0NzY2M2JmYjI2MDIwMGFjNGIyN2JmNGI0NDIzNTYxMzE1MmJlZDQxODMzYTZlOWViNTE1YjBjMjNiNjkzMmRhNjE2MmQ3OTE0OWY4NTE1MTdiYTgwNDY4MjAzMzcwODA0YjYyZmZi\"}}";
-			controlPlaneDefinePub.send(Map.of("body", jsonString), APP_ID, false);
+			//String jsonString ="{\"name\":\"1b2e0-10\",\"master-node\":\"m1b2e0-10-master\",\"nodes\":[{\"nodeName\":\"n1b2e0-10-dummy-app-worker-1-0\",\"nodeCandidateId\":\"8a74863a968224ec0196822ae8580010\",\"cloudId\":\"10c9c67f-848a-42bb-a4ce-51549b14b36f\"},{\"nodeName\":\"m1b2e0-10-master\",\"nodeCandidateId\":\"8a74863a968224ec0196822ae8580010\",\"cloudId\":\"10c9c67f-848a-42bb-a4ce-51549b14b36f\"},{\"nodeName\":\"n1b2e0-10-dummy-app-controller-1-0\",\"nodeCandidateId\":\"8a74863a968224ec0196822ae8580010\",\"cloudId\":\"10c9c67f-848a-42bb-a4ce-51549b14b36f\"}],\"env-var\":{\"APPLICATION_ID\":\"1b2e0865-7250-4146-9633-2f4e413c980a\",\"BROKER_ADDRESS\":\"158.37.63.86\",\"ACTIVEMQ_HOST\":\"158.37.63.86\",\"BROKER_PORT\":\"32757\",\"ACTIVEMQ_PORT\":\"32757\",\"ONM_IP\":\"158.39.201.249\",\"ONM_URL\":\"https://onm.dev.nebulouscloud.eu\",\"NEBULOUS_CONTROL_PLANE_PASSWORD\":\"supersecret\"}}";
+			//"metaData", Map.of("user", "admin"),
+			 Map<String, Object> msg = Map.of(
+		                "body", jsonString);
+			 
+			controlPlaneDefinePub.send(msg, APP_ID, false);
 			Optional<NebulOuSCoreMessage> defineMessage = controlPlaneMessageStore.findFirst(APP_ID,
 					"eu.nebulouscloud.exn.sal.cluster.define", null, 3);
 			assertTrue(defineMessage.isPresent());
 			LOGGER.info("Starting appClusterClient");
 
 			NebulousCoreMessageBrokerLocalStore clusterMessageStore = new NebulousCoreMessageBrokerLocalStore();
-			// Consumer appClusterConsumer = new Consumer("monitoring", APP_ID+"-eu.#", new
-			// Handler() {
-			// 1146110908rest-processor-app1723196772-eu.nebulouscloud.ui.dsl.metric_model
 			Consumer appClusterConsumer = new Consumer("appClusterConsumer",
 					APP_ID + "-eu.nebulouscloud.ui.dsl.metric_model", new Handler() {
 						@Override
@@ -233,16 +240,11 @@ class DynamicBridgePluginTest {
 							clusterMessageStore.onMessage(key, address, body, message, context);
 						}
 					}, true, true);
-			// Publisher appClusterPublisher = new Publisher("appClusterPublisher",
-			// "eu.nebulouscloud.exn.sal.cluster.define",true,true);
+			
 			Connector appClusterClient = new Connector("appClusterClient", new ConnectorHandler() {
 			}, List.of(), List.of(appClusterConsumer), false, false,
-					new StaticExnConfig("0.0.0.0", controlPlanePort, APP_ID, APP_ID));
+					new StaticExnConfig("0.0.0.0", controlPlanePort, "admin", "admin"));
 			appClusterClient.start();
-
-			// 1146110908rest-processor-app1723196772-eu.nebulouscloud.optimiser.controller.metric_list
-			// 1146110908rest-processor-app1723196772-eu.#
-			// controlPlanePublisher.send(om.readValue(jsonString, Map.class));
 
 			/**
 			 * Assert that a message for same APP_ID is recieved
@@ -288,7 +290,8 @@ class DynamicBridgePluginTest {
 			String NEBULOUS_CONTROL_PLANE_PASSWORD = APP_ID;
 
 			int controlPlanePort = 3355;
-			EmbeddedActiveMQ broker = createControlPlaneBroker("control-plane", controlPlanePort);
+			int appClusterBrokerPort = 3356;
+			EmbeddedActiveMQ broker = createControlPlaneBroker("control-plane", controlPlanePort,appClusterBrokerPort);
 			NebulousCoreMessageBrokerLocalStore controlPlaneMessageStore = new NebulousCoreMessageBrokerLocalStore();
 
 			LOGGER.info("Starting controlPlaneClient");
@@ -321,9 +324,9 @@ class DynamicBridgePluginTest {
 			LOGGER.info("Starting appClusterClient");
 			Thread.sleep(2000);
 
-			int appClusterBrokerPort = 3356;
+			
 			EmbeddedActiveMQ appClusterBroker = createAppClusterBroker("app-cluster", appClusterBrokerPort,
-					controlPlanePort, APP_ID, NEBULOUS_CONTROL_PLANE_PASSWORD);
+					"localhost:" + controlPlanePort, APP_ID, NEBULOUS_CONTROL_PLANE_PASSWORD);
 			NebulousCoreMessageBrokerLocalStore clusterMessageStore = new NebulousCoreMessageBrokerLocalStore();
 			Consumer appClusterConsumer = new Consumer("appClusterConsumer", "eu.#", new Handler() {
 				@Override
@@ -387,7 +390,7 @@ class DynamicBridgePluginTest {
 
 	}
 
-	@Test
+	//@Test
 	void Test3() throws Exception {
 
 		/**
@@ -396,7 +399,8 @@ class DynamicBridgePluginTest {
 
 		try {
 			int controlPlanePort = 5672;
-			EmbeddedActiveMQ broker = createControlPlaneBroker("control-plane", controlPlanePort);
+			int appClusterBrokerPort = -1;
+			EmbeddedActiveMQ broker = createControlPlaneBroker("control-plane", controlPlanePort,appClusterBrokerPort);
 			NebulousCoreMessageBrokerLocalStore controlPlaneMessageStore = new NebulousCoreMessageBrokerLocalStore();
 
 			LOGGER.info("Starting controlPlaneClient");
@@ -430,5 +434,129 @@ class DynamicBridgePluginTest {
 		}
 
 	}
+	
+	//@Test
+	void test5() throws Exception
+	{
+		String appID =  "30140c33-e142-4597-bca9-0d2991aebe15";
+		EmbeddedActiveMQ appClusterBroker = createAppClusterBroker("app-cluster", 30002,
+				"158.37.63.86:31313", appID, "supersecret");
+		
+		Publisher localPublisher = new Publisher("appClusterPublisher", "eu.nebulouscloud.ui.dsl.metric_model",
+				true, true);
+		Connector localConnector = new Connector("appClusterClient", new ConnectorHandler() {
+		}, List.of(localPublisher), List.of(), false, false,
+				new StaticExnConfig("0.0.0.0", 30002, "admin", "admin"));
+		localConnector.start();
+		
+		while(true)
+		{
+			localPublisher.send(Map.of("hola", "hola"), appID, false);
+			LOGGER.warn("Send");
+			Thread.sleep(2000);
+		}
+		
+	}
+	//@Test
+	void sendMetricModelOnAppBroker() throws Exception
+	{
+		String APP_ID = "1146110908rest-processor-xxxx";
+		String NEBULOUS_CONTROL_PLANE_PASSWORD = APP_ID;
+		String controlPlaneBrokerAddress="158.37.63.86:32757";
+		EmbeddedActiveMQ appClusterBroker = createAppClusterBroker("app-cluster", 30002,
+				controlPlaneBrokerAddress,APP_ID, NEBULOUS_CONTROL_PLANE_PASSWORD);
+		
+		Publisher localPublisher = new Publisher("appClusterPublisher", "eu.nebulouscloud.ui.dsl.metric_model",
+				true, true);
+		Connector localConnector = new Connector("appClusterClient", new ConnectorHandler() {
+		}, List.of(localPublisher), List.of(), false, false,
+				new StaticExnConfig("0.0.0.0", 30002, "admin", "admin"));
+		localConnector.start();
+		
+		while(true)
+		{
+			localPublisher.send(Map.of("hola", "hola"), APP_ID, false);
+			LOGGER.warn("Send");
+			Thread.sleep(2000);
+		}
+		
+	}
+	
+	//@Test
+	void defineClusterOnDevEnv() throws InterruptedException
+	{
+		String APP_ID = "1146110908rest-processor-gggg";
+		String NEBULOUS_CONTROL_PLANE_PASSWORD = APP_ID;
+		Publisher controlPlaneDefinePub = new Publisher("controlPlanePublisher",
+				"eu.nebulouscloud.exn.sal.cluster.define", true, true);		
+		Connector controlPlaneClient = new Connector("controlPlaneClient", new ConnectorHandler() {
+			public void onReady(AtomicReference<Context> context) {
+				LOGGER.info("Optimiser-controller connected to ActiveMQ");
+			}
+		}, List.of(controlPlaneDefinePub), List.of(), true, true,new StaticExnConfig("158.37.63.86", 32757, "admin", "nebulous"));
+		controlPlaneClient.start();
+		Thread.sleep(1000);
+		String jsonString = "{\"name\":\"11461-9\",\"master-node\":\"m11461-9-master\",\"nodes\":[{\"nodeName\":\"m11461-9-master\",\"nodeCandidateId\":\"8a7484bf912bf07c01913683e4c528e4\",\"cloudId\":\"uio-openstack-optimizer\"},{\"nodeName\":\"n11461-9-dummy-app-worker-1-1\",\"nodeCandidateId\":\"8a7484bf912bf07c01913683e4c528e4\",\"cloudId\":\"uio-openstack-optimizer\"},{\"nodeName\":\"n11461-9-dummy-app-controller-1-1\",\"nodeCandidateId\":\"8a7484bf912bf07c01913683e4c528e4\",\"cloudId\":\"uio-openstack-optimizer\"}],\"env-var\":{\"NEBULOUS_CONTROL_PLANE_PASSWORD\":\""
+				+ NEBULOUS_CONTROL_PLANE_PASSWORD + "\",     \"APPLICATION_ID\":\"" + APP_ID
+				+ "\",\"BROKER_ADDRESS\":\"158.37.63.86\",\"ACTIVEMQ_HOST\":\"158.37.63.86\",\"BROKER_PORT\":\"32754\",\"ACTIVEMQ_PORT\":\"32754\",\"ONM_IP\":\"158.39.201.249\",\"ONM_URL\":\"https://onm.cd.nebulouscloud.eu\",\"AMPL_LICENSE\":\"NjYxZTQzNDQ5ODE2NDczZWIzNDIwNDc2NzZlZjI5Mzc1MjQ0MDUyMGM3MzczYzI5MTg1ODBjNWFmNzBmMzZiN2U3YWYxNzZjYTY2NjQyYTZjMWYzYzFiNjQwNmFlYTgxMTRiZjhhNDg5ZjQ0OGJjZGIyYTc2MDYzNzNiMjNiMTdjNWQ4ZjlhMjg2MjcyYzg4ZjIxOWZjZWZjMTY0MzIxMmU2ZWFjZTY5M2EzMDliYjNlMzBkN2UzNTI3MjA3OTgxZTBhMjNhNWNkOGIzYjcyOGUwZTc2ZWJiZDQwMjNhZTZiNGJkZmFiYmY1MDdkZTJlODM0M2UyNmNjNDc4NjlhNjQ0ZmZkODYxZmQzNjE0ZmVmYTJkYmZhNzI0YmMyODU3MTFmM2Q1Zjg3M2IyOTk0ODViZGNlOTBiYTRlNzc1YjQwMjI1MTI3MzIzNTBlYzZhNjExOGI4NjkyNmUwMDhjNjg1OTQwNjAyYjA5NzhlYzAxMjlmY2Q4NzM0ZDhjNGM2NDIwYmQ4MzE4OWU0NWM0MTk1ZWE4MzMxMzI0NjE4ZjBjN2RlYTViMTk0MTQ0MTJjN2MzMTNiOTIzMmQ4MTVlMGIxZDYzZjYxY2M0MWM1MzIzMDdkOTBiYjkwMWMyYTM0NTZhMWU0MGQ0OTkzOTAxMWEwMTIwMjEwYzNkYWE1YjNlN2YzZTk4ZGNhMDRmZTgyNDA3ZDc4MzQ0NGIzODcwMGU1MzdlNGJkOWI3MmY3MGY1NDQwZGM4YmE1OWE5MjU1YzJlMWM0OGRmYWM2ZTAwNmE5MGZkMzI1ODYwYzVkMzFkNDRlZTBhNTZjZTJlNTM2OWM3MTMzOTE4NWNhZjAxMWIxNzY2NGE3YTRjNWRhZjM5MjMxM2Q4YWUxODdmZTI0NzY2M2JmYjI2MDIwMGFjNGIyN2JmNGI0NDIzNTYxMzE1MmJlZDQxODMzYTZlOWViNTE1YjBjMjNiNjkzMmRhNjE2MmQ3OTE0OWY4NTE1MTdiYTgwNDY4MjAzMzcwODA0YjYyZmZi\"}}";
+		controlPlaneDefinePub.send(Map.of("body", jsonString), APP_ID, false);
+		
+	}
+	
+	//@Test
+	void sendMetricModelToClusterOnDevEnv() throws Exception
+	{
+		String APP_ID = "1146110908rest-processor-xxxx";
+		String user ="bridge-"+APP_ID;
+		String NEBULOUS_CONTROL_PLANE_PASSWORD = APP_ID;
+		LOGGER.info("Starting controlPlaneClient");
+		
+		Publisher localPublisher = new Publisher("appClusterPublisher", "eu.nebulouscloud.ui.dsl.metric_model",
+				true, true);
+		Connector localConnector = new Connector("appClusterClient", new ConnectorHandler() {
+		//}, List.of(localPublisher), List.of(), false, false,new StaticExnConfig("158.37.63.86", 32757, user, NEBULOUS_CONTROL_PLANE_PASSWORD));
+		}, List.of(localPublisher), List.of(), false, false,new StaticExnConfig("158.37.63.86", 32757, "admin", "nebulous"));
+		//}, List.of(localPublisher), List.of(), false, false,new StaticExnConfig("localhost", 61616, "admin", "nebulous"));
+		
+		localConnector.start();
+		
+		while(true)
+		{
+			localPublisher.send(Map.of("hola", "hola"), APP_ID, false);
+			LOGGER.warn("Send");
+			Thread.sleep(2000);
+		}
+		
+	}
+	
+	//@Test
+	void listenMetricModelOnControlPlane() throws Exception
+	{
+		//AMQP: 5672:32757
+		//ALL:  61616:31313
+		LOGGER.info("Starting controlPlaneClient");
+		Consumer controlPlaneConsummer = new Consumer("monitoring", "eu.nebulouscloud.ui.dsl.metric_model", new Handler() {
 
+			@Override
+			public void onMessage(String key, String address, Map body, Message message, Context context) {
+				LOGGER.info(body.toString());
+			}
+		}, true, true);
+		
+		Connector localConnector = new Connector("appClusterClient", new ConnectorHandler() {		
+		}, List.of(), List.of(controlPlaneConsummer), false, false,new StaticExnConfig("158.37.63.86", 32757, "admin", "nebulous"));
+		
+		localConnector.start();
+		
+		while(true)
+		{
+			Thread.sleep(2000);
+		}
+		
+	}
 }
+
+// Adding bridge user 'bridge-30140c33-e142-4597-bca9-0d2991aebe15' for application '30140c33
+//2025-04-29 19:32:52,758 INFO  [eut.nebulouscloud.bridge.ControlPlaneBridgePlugin] Successfully added bridge user 'bridge-30140c33-e142-4597-bca9-0d2991aebe15' for applicati
+//2025-04-29 19:32:53,237 INFO  [eut.nebulouscloud.bridge.ControlPlaneBridgePlugin] beforeSend topic://eu.nebulouscloud.exn.sal.cluster.define.reply
+//2025-04-29 19:32:53,258 INFO  [eut.nebulouscloud.bridge.ControlPlaneBridgePlugin] beforeSend activemq.notifications

@@ -69,7 +69,7 @@ abstract class NebulOuSBridge implements ActiveMQServerPlugin {
 			conf.setQueueName(appId+"-"+addressName);
 			conf.setStaticConnectors(List.of(connectorName));
 			conf.setFilterString( "application='"+appId+"'  AND NEB_BRIDGED IS NULL");
-			conf.setUser(constructBridgeUserName(appId));
+			conf.setUser(constructBridgeUserName(appId));			
 			conf.setPassword(password);
 			TransformerConfiguration tc = new TransformerConfiguration("eut.nebulouscloud.bridge.BridgeTransformer");
 			conf.setTransformerConfiguration(tc);

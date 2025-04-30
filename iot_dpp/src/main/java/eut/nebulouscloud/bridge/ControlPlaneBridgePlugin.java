@@ -3,6 +3,7 @@ package eut.nebulouscloud.bridge;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import org.apache.activemq.artemis.api.core.ActiveMQBuffer;
 import org.apache.activemq.artemis.api.core.ActiveMQException;
@@ -10,6 +11,8 @@ import org.apache.activemq.artemis.api.core.Message;
 import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.apache.activemq.artemis.core.server.RoutingContext;
 import org.apache.activemq.artemis.core.server.ServerSession;
+import org.apache.activemq.artemis.protocol.amqp.broker.AMQPStandardMessage;
+import org.apache.qpid.proton.amqp.messaging.AmqpValue;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -20,7 +23,7 @@ public class ControlPlaneBridgePlugin extends NebulOuSBridge {
 	{
 		LOGGER = LoggerFactory.getLogger(ControlPlaneBridgePlugin.class);
 	}
-	
+	private String APP_BROKER_PORT;
 	static String CLUSTER_DEFINE_TOPIC = "eu.nebulouscloud.exn.sal.cluster.define";
 	private Map<String, String> bridgePasswords = new HashMap<String, String>();
 	private static String[] bridgedTopics = new String[] { "eu.nebulouscloud.ui.dsl.metric_model",
@@ -30,19 +33,7 @@ public class ControlPlaneBridgePlugin extends NebulOuSBridge {
 			"eu.nebulouscloud.solver.state" };
 
 	private String getBody(Message message) {
-		String body = message.getStringBody();
-		if (body == null) {
-			try {
-				ActiveMQBuffer buf = message.toCore().getBodyBuffer();
-				byte[] data = new byte[buf.writerIndex() - buf.readerIndex()];
-				buf.readFully(data);
-				body = new String(data, StandardCharsets.UTF_8);
-			} catch (Exception ex) {
-				LOGGER.error("cant get body", ex);
-
-			}
-		}
-		return body;
+		return (String)((Map<String,Object>)((AmqpValue)((AMQPStandardMessage)message).getBody()).getValue()).get("body");		
 	}
 
 	@Override
@@ -97,7 +88,7 @@ public class ControlPlaneBridgePlugin extends NebulOuSBridge {
 
 	private void createBridgeFromControlPlaneToApp(String appId, String appBridgePassword,String appClusterHost) {
 		
-		String appBrokerAddress = "tcp://"+appClusterHost+":3356";	
+		String appBrokerAddress = "tcp://"+appClusterHost+":"+APP_BROKER_PORT;	
 		String connectorName = constructConnectorName(appId);
 		if (server.getConfiguration().getConnectorConfigurations().containsKey(connectorName)) {
 			LOGGER.trace("Ignoring createBridgeFromControlPlaneToApp, bridge already exsists for app '{}'", appId);
@@ -121,21 +112,7 @@ public class ControlPlaneBridgePlugin extends NebulOuSBridge {
 		String applicationId = null;
 		try {
 			String content = getBody(message);
-			/*
-			 * new String(content.getBytes(StandardCharsets.UTF_8),
-			 * StandardCharsets.UTF_8).replaceAll("[^\\x00-\\x7F]", ""); for (char c :
-			 * content.toCharArray()) {
-			 * System.out.printf("Character: %c, Unicode: U+%04X%n", c, (int) c); }
-			 */
-			// (new String(bytes, StandardCharsets.UTF_8)).
-
 			LOGGER.info(content);
-			content = content.replaceAll("[\\x00-\\x1F\\x7F]", "");
-			content = content.replaceAll("\u0000", "");
-			content = content.replaceAll("\u0008", "");
-			content = content.replaceAll("bodyN\\{", "{");
-			LOGGER.info(content);
-
 			// Parse the outer JSON
 			JsonNode rootNode = om.readTree(content);
 			// Get and parse the body string
@@ -175,6 +152,8 @@ public class ControlPlaneBridgePlugin extends NebulOuSBridge {
 	@Override
 	public void init(Map<String, String> properties) {
 		LOGGER.info("init...");
+		APP_BROKER_PORT = Optional.ofNullable(properties.getOrDefault("APP_BROKER_PORT", null))
+				.orElseThrow(() -> new IllegalStateException("APP_BROKER_PORT parameter is not defined"));
 	}
 
 	@Override
