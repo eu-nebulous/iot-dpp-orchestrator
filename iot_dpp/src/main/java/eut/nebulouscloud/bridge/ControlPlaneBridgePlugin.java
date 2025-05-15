@@ -1,16 +1,15 @@
 package eut.nebulouscloud.bridge;
 
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 
-import org.apache.activemq.artemis.api.core.ActiveMQBuffer;
 import org.apache.activemq.artemis.api.core.ActiveMQException;
 import org.apache.activemq.artemis.api.core.Message;
+import org.apache.activemq.artemis.api.core.QueueConfiguration;
+import org.apache.activemq.artemis.api.core.RoutingType;
+import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.apache.activemq.artemis.core.server.RoutingContext;
-import org.apache.activemq.artemis.core.server.ServerSession;
 import org.apache.activemq.artemis.protocol.amqp.broker.AMQPStandardMessage;
 import org.apache.qpid.proton.amqp.messaging.AmqpValue;
 import org.slf4j.LoggerFactory;
@@ -18,48 +17,55 @@ import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.databind.JsonNode;
 
 public class ControlPlaneBridgePlugin extends NebulOuSBridge {
-	
-	public ControlPlaneBridgePlugin()
-	{
+
+	public ControlPlaneBridgePlugin() {
 		LOGGER = LoggerFactory.getLogger(ControlPlaneBridgePlugin.class);
 	}
-	private String APP_BROKER_PORT;
+	
 	static String CLUSTER_DEFINE_TOPIC = "eu.nebulouscloud.exn.sal.cluster.define";
 	private Map<String, String> bridgePasswords = new HashMap<String, String>();
 	private static String[] bridgedTopics = new String[] { "eu.nebulouscloud.ui.dsl.metric_model",
 			"eu.nebulouscloud.optimiser.controller.model", "eu.nebulouscloud.optimiser.controller.metric_list",
 			"eu.nebulouscloud.optimiser.controller.app_state", "eu.nebulouscloud.monitoring.slo.new",
 			"eu.nebulouscloud.optimiser.solver.solution", "eu.nebulouscloud.optimiser.solver.context",
-			"eu.nebulouscloud.solver.state" };
+			"eu.nebulouscloud.solver.state","eu.nebulouscloud.monitoring.commands","eu.nebulouscloud.monitoring.metric_list","eu.nebulouscloud.ems.boot.reply" };
 
 	private String getBody(Message message) {
-		return (String)((Map<String,Object>)((AmqpValue)((AMQPStandardMessage)message).getBody()).getValue()).get("body");		
+		return (String) ((Map<String, Object>) ((AmqpValue) ((AMQPStandardMessage) message).getBody()).getValue())
+				.get("body");
 	}
 
-	@Override
-	public void afterCreateSession(ServerSession session) throws ActiveMQException {
-		String appID = extractAPPIdFromUserName(session.getValidatedUser());
-		if (appID != null) {
-			if (!bridgePasswords.containsKey(appID)) {
-				LOGGER.error("Bridge connection attempt from user '{}' failed - application ID not registered", 
-						session.getValidatedUser());
-				return;
-			}
-			else{
-				String appClusterHost = session.getRemotingConnection().getRemoteAddress().split(":")[0];
-				LOGGER.info("New session from APP '{}' - on host '{}'", appID, appClusterHost);
-				createBridgeFromControlPlaneToApp(appID, bridgePasswords.get(appID),appClusterHost);
-			}
+	/**
+	 * Processes a bridging configuration message received from an application.
+	 * This method handles the setup of a bridge connection between the control plane
+	 * and an application's broker. It verifies the application's registration status
+	 * and initiates the bridge creation if valid.
+	 *
+	 * @param message The AMQP message containing bridging configuration details
+	 * @throws Exception If there's an error processing the message or creating the bridge
+	 */
+	private void processBridgingConfigMessage(Message message) {
+		try {
+			String appID = message.getStringProperty("application");
+			LOGGER.debug("Processing bridging config message for application: {}", appID);
 			
+			if (!bridgePasswords.containsKey(appID)) {
+				LOGGER.error("Bridge connection attempt from user '{}' failed - application ID not registered", appID);
+				return;
+			}			
+			LOGGER.info("Remote broker details message received for application: {}", appID);
+			String appBrokerAddress = message.getStringProperty("appBrokerAddress");
+			LOGGER.debug("Creating bridge for application: {} with broker address: {}", appID, appBrokerAddress);			
+			createBridgeFromControlPlaneToApp(appID, bridgePasswords.get(appID), appBrokerAddress);
+			LOGGER.info("Successfully processed bridging configuration for application: {}", appID);
+		} catch (Exception ex) {
+			LOGGER.error("Failed to process bridging configuration message: {}", ex.getMessage(), ex);
 		}
-
 	}
 
 	@Override
 	public void beforeMessageRoute(Message message, RoutingContext context, boolean direct, boolean rejectDuplicates)
 			throws ActiveMQException {
-		LOGGER.info("beforeSend " + message.getAddress().toString());
-		//
 		if (message.getAddress().toString().equals(CLUSTER_DEFINE_TOPIC)
 				|| message.getAddress().toString().equals("topic://" + CLUSTER_DEFINE_TOPIC)) {
 			LOGGER.info("Cluster define message intercepted");
@@ -69,14 +75,16 @@ public class ControlPlaneBridgePlugin extends NebulOuSBridge {
 			return;
 		String userAppId = extractAPPIdFromUserName(context.getServerSession().getValidatedUser());
 		if (userAppId != null) {
-			String claimedAppId = message.getStringProperty("application");
+			String claimedAppId = message.getStringProperty("application");			
 			if (!userAppId.equals(claimedAppId)) {
-				LOGGER.error("Message blocked by interceptor - user '{}' claims app '{}' but message is for app '{}'", 
-						context.getServerSession().getValidatedUser(), userAppId, claimedAppId);	
-				throw new ActiveMQException( 
-					"Message blocked: User '" + context.getServerSession().getValidatedUser() + 
-					"' attempted to send message for app '" + claimedAppId + 
-					"' but is only authorized for app '" + userAppId + "'");
+				LOGGER.error("Message blocked by interceptor - user '{}' claims app '{}' but message is for app '{}'",
+						context.getServerSession().getValidatedUser(), userAppId, claimedAppId);
+				throw new ActiveMQException("Message blocked: User '" + context.getServerSession().getValidatedUser()
+						+ "' attempted to send message for app '" + claimedAppId + "' but is only authorized for app '"
+						+ userAppId + "'");
+			}
+			if (message.getAddress().equals("eu.nebulouscloud.bridging")) {
+				processBridgingConfigMessage(message);
 			}
 		}
 
@@ -86,9 +94,9 @@ public class ControlPlaneBridgePlugin extends NebulOuSBridge {
 		return "master-" + appId;
 	}
 
-	private void createBridgeFromControlPlaneToApp(String appId, String appBridgePassword,String appClusterHost) {
-		
-		String appBrokerAddress = "tcp://"+appClusterHost+":"+APP_BROKER_PORT;	
+	private void createBridgeFromControlPlaneToApp(String appId, String appBridgePassword, String appBrokerAddress) {
+
+
 		String connectorName = constructConnectorName(appId);
 		if (server.getConfiguration().getConnectorConfigurations().containsKey(connectorName)) {
 			LOGGER.trace("Ignoring createBridgeFromControlPlaneToApp, bridge already exsists for app '{}'", appId);
@@ -99,7 +107,8 @@ public class ControlPlaneBridgePlugin extends NebulOuSBridge {
 			LOGGER.info("Adding static connector to app '{}' using address '{}'", appId, appBrokerAddress);
 			server.getActiveMQServerControl().addConnector(connectorName, appBrokerAddress);
 		} catch (Exception e) {
-			LOGGER.error("Failed to register static connector to app '{}' using address '{}': {}", appId, appBrokerAddress, e.getMessage(), e);
+			LOGGER.error("Failed to register static connector to app '{}' using address '{}': {}", appId,
+					appBrokerAddress, e.getMessage(), e);
 		}
 		for (String toApplicationTopic : bridgedTopics) {
 			createTopicBridge(appId, appBridgePassword, connectorName, toApplicationTopic);
@@ -123,11 +132,11 @@ public class ControlPlaneBridgePlugin extends NebulOuSBridge {
 			// Get the env-var object and convert to Map
 			Map<String, String> envVars = om.convertValue(bodyNode.get("env-var"), Map.class);
 
-			if (!envVars.containsKey("NEBULOUS_CONTROL_PLANE_PASSWORD")) {
-				LOGGER.error("Can't find NEBULOUS_CONTROL_PLANE_PASSWORD var");
+			if (!envVars.containsKey("NEBULOUS_MESSAGE_BRIDGE_PASSWORD")) {
+				LOGGER.error("Can't find NEBULOUS_MESSAGE_BRIDGE_PASSWORD var");
 				return;
 			} else {
-				password = envVars.get("NEBULOUS_CONTROL_PLANE_PASSWORD");
+				password = envVars.get("NEBULOUS_MESSAGE_BRIDGE_PASSWORD");
 			}
 			if (!envVars.containsKey("APPLICATION_ID")) {
 				LOGGER.error("Can't find APPLICATION_ID var");
@@ -152,12 +161,10 @@ public class ControlPlaneBridgePlugin extends NebulOuSBridge {
 	@Override
 	public void init(Map<String, String> properties) {
 		LOGGER.info("init...");
-		APP_BROKER_PORT = Optional.ofNullable(properties.getOrDefault("APP_BROKER_PORT", null))
-				.orElseThrow(() -> new IllegalStateException("APP_BROKER_PORT parameter is not defined"));
 	}
 
 	@Override
-	public void registered(ActiveMQServer server) {		
+	public void registered(ActiveMQServer server) {
 		LOGGER.info("registered...");
 		super.registered(server);
 		new Thread(new ConfigRunner(server)).start();
@@ -177,11 +184,25 @@ public class ControlPlaneBridgePlugin extends NebulOuSBridge {
 			while (!server.isActive()) {
 				LOGGER.info("Waiting for server to start...");
 				try {
-					Thread.sleep(500);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
+					Thread.sleep(1000);
+				} catch (Exception e) {
 					e.printStackTrace();
 				}
+			}
+			try {
+				if (!server.queueQuery(SimpleString.of("eu.nebulouscloud.bridging")).isExists()) {
+					QueueConfiguration config = new QueueConfiguration();
+					config.setAddress("eu.nebulouscloud.bridging");
+					config.setRoutingType(RoutingType.ANYCAST);
+					config.setName("eu.nebulouscloud.bridging");
+					config.setConfigurationManaged(true);
+					config.setAutoCreateAddress(true);
+					config.setPurgeOnNoConsumers(false);
+					server.createQueue(config);
+				}
+
+			} catch (Exception e) {
+				e.printStackTrace();
 			}
 
 		}
