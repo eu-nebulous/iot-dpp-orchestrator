@@ -84,7 +84,10 @@ class MessageGroupIdAnnotationPluginTest {
 		});
 		server.setConfiguration(config);
 		server.start();
-		Thread.sleep(1000);
+		while (!server.getActiveMQServer().isActive()) {
+		    System.out.println("Waiting for server to start...");
+		    Thread.sleep(500);
+		}
 		return server;
 	}
 

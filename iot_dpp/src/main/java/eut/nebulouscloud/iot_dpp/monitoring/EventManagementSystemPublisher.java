@@ -67,7 +67,7 @@ public class EventManagementSystemPublisher {
 		try {
 			String payload = om.writeValueAsString(Map.of("metricValue", value, "level", 1, "timestamp", timestamp));		
 			LOGGER.info(String.format("Publish metric %s -> %s", topic, payload));
-			client.send(topic, payload);
+			client.send("/topic/"+topic, payload);
 		} catch (Exception ex) {
 			LOGGER.error("Can't send message to EMS", ex);
 		}

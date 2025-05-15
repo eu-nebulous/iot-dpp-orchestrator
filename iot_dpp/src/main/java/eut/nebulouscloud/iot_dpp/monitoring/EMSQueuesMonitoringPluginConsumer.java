@@ -9,9 +9,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import eut.nebulouscloud.iot_dpp.monitoring.QueuesMonitoringPlugin.QueuesMonitoringPluginConsumer;
-import eut.nebulouscloud.iot_dpp.monitoring.events.MessageAcknowledgedEvent;
-import eut.nebulouscloud.iot_dpp.monitoring.events.MessageDeliveredEvent;
-import eut.nebulouscloud.iot_dpp.monitoring.events.MessagePublishedEvent;
 
 public class EMSQueuesMonitoringPluginConsumer implements QueuesMonitoringPluginConsumer{
 	Logger LOGGER = LoggerFactory.getLogger(EMSQueuesMonitoringPluginConsumer.class);

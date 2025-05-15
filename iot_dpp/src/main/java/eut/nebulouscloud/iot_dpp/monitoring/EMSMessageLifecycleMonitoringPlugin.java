@@ -1,15 +1,12 @@
 package eut.nebulouscloud.iot_dpp.monitoring;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import eut.nebulouscloud.iot_dpp.monitoring.QueuesMonitoringPlugin.QueuesMonitoringPluginConsumer;
 import eut.nebulouscloud.iot_dpp.monitoring.events.MessageAcknowledgedEvent;
 import eut.nebulouscloud.iot_dpp.monitoring.events.MessageDeliveredEvent;
 import eut.nebulouscloud.iot_dpp.monitoring.events.MessageLifecycleEvent;
@@ -34,12 +31,12 @@ public class EMSMessageLifecycleMonitoringPlugin extends MessageLifecycleMonitor
 		String emsPassword = Optional.ofNullable(properties.getOrDefault("ems_password", null))
 				.orElseThrow(() -> new IllegalStateException("ems_password parameter is not defined"));
 		
-		monitoredTopicPrefix = Optional.ofNullable(properties.getOrDefault("monitored_topic_prefix", null))
-				.orElseThrow(() -> new IllegalStateException("monitored_topic_prefix parameter is not defined"));
-		String reportingTopicPrefix = properties.getOrDefault("reporting_topic_prefix", "/topic/");
+		monitoredQueueRegex = Optional.ofNullable(properties.getOrDefault("monitored_queue_regex", null))
+				.orElseThrow(() -> new IllegalStateException("monitored_queue_regex parameter is not defined"));
+		String reportingTopicPrefix = properties.getOrDefault("reporting_topic_prefix", "monitoring");
 		
 		publisher = new EventManagementSystemPublisher(emsURL, emsUser, emsPassword,reportingTopicPrefix);		
-		LOGGER.info("monitoredTopicPrefix: " + monitoredTopicPrefix);
+		LOGGER.info("monitoredQueueRegex: " + monitoredQueueRegex);
 		LOGGER.info("Init EMSMessageLifecycleMonitoringPlugin with parameters:");
 		LOGGER.info("reportingTopicPrefix"+reportingTopicPrefix);
 		LOGGER.info("emsURL: "+emsURL);
@@ -54,7 +51,7 @@ public class EMSMessageLifecycleMonitoringPlugin extends MessageLifecycleMonitor
 	protected synchronized void notifyEvent(MessageLifecycleEvent event) {
 		
 		try {
-			String messageAddress = event.messageAddress.replaceAll("\\.", "_");
+			String messageAddress = event.messageQueue.replaceAll("\\.", "_");
 			String eventType ="";
 			Map<String,Double> metrics = new HashMap();
 			if(event instanceof MessagePublishedEvent)

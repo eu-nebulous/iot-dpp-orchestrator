@@ -35,10 +35,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import eut.nebulouscloud.iot_dpp.monitoring.EMSMessageLifecycleMonitoringPlugin;
-import eut.nebulouscloud.iot_dpp.monitoring.MessageLifecycleMonitoringPlugin;
-import eut.nebulouscloud.iot_dpp.monitoring.QueuesMonitoringMessage;
-import eut.nebulouscloud.iot_dpp.monitoring.QueuesMonitoringPlugin;
-import eut.nebulouscloud.iot_dpp.monitoring.QueuesMonitoringPlugin.QueuesMonitoringPluginConsumer;
 import eut.nebulouscloud.iot_dpp.monitoring.events.MessageAcknowledgedEvent;
 import eut.nebulouscloud.iot_dpp.monitoring.events.MessageDeliveredEvent;
 import eut.nebulouscloud.iot_dpp.monitoring.events.MessageLifecycleEvent;
@@ -76,9 +72,7 @@ class MessageMonitoringPluginTest {
 		config.setPagingDirectory(foldersRoot + "/paging");
 		config.addConnectorConfiguration("serverAt" + port + "Connector", "tcp://localhost:" + port);
 		config.addAcceptorConfiguration("netty", "tcp://localhost:" + port);
-		// config.setPersistenceEnabled(true);		
-		
-		
+		// config.setPersistenceEnabled(true);				
 		ClusterConnectionConfiguration cluster = new ClusterConnectionConfiguration();
 		cluster.setAddress("");
 		cluster.setConnectorName("serverAt" + port + "Connector");
@@ -103,9 +97,9 @@ class MessageMonitoringPluginTest {
 			}
 		};
 		
-		plugin.monitoredTopicPrefix = testTopic+"";
+		plugin.monitoredQueueRegex = testTopic+"";
 
-		config.getBrokerMessagePlugins().add(plugin);
+		config.getBrokerPlugins().add(plugin);
 		EmbeddedActiveMQ server = new EmbeddedActiveMQ();
 		server.setSecurityManager(new ActiveMQSecurityManager() {
 			@Override
@@ -120,6 +114,10 @@ class MessageMonitoringPluginTest {
 		});
 		server.setConfiguration(config);
 		server.start();
+		while (!server.getActiveMQServer().isActive()) {
+		    System.out.println("Waiting for server to start...");
+		    Thread.sleep(500);
+		}
 		return server;
 	}
 
@@ -208,7 +206,7 @@ class MessageMonitoringPluginTest {
 			assertEquals(true, ackEventOptional.isPresent());
 			MessageAcknowledgedEvent ackEvent = (MessageAcknowledgedEvent) ackEventOptional.get();
 
-			assertEquals(publishEvent.messageAddress, deliverEvent.publishAddress);
+			assertEquals(publishEvent.messageQueue, deliverEvent.publishQueue);
 			assertEquals(publishEvent.clientId, deliverEvent.publishClientId);
 			assertEquals(publishEvent.messageId, deliverEvent.messageId);
 			// assertEquals(publishEvent.messageSize, deliverEvent.messageSize);
@@ -346,10 +344,10 @@ class MessageMonitoringPluginTest {
 			MessageAcknowledgedEvent ackEvent = (MessageAcknowledgedEvent) ackEventOptional.get();
 
 			assertEquals(sender.client().containerId(), publishEvent.clientId);
-			assertEquals(testTopic, publishEvent.messageAddress);
+			assertEquals(testTopic, publishEvent.messageQueue);
 			assertEquals(receiver.client().containerId(), deliverEvent.clientId);
-			assertEquals(testTopic, deliverEvent.messageAddress);
-			assertEquals(publishEvent.messageAddress, deliverEvent.publishAddress);
+			assertEquals(testTopic, deliverEvent.messageQueue);
+			assertEquals(publishEvent.messageQueue, deliverEvent.publishQueue);
 			assertEquals(publishEvent.clientId, deliverEvent.publishClientId);
 			assertEquals(publishEvent.messageId, deliverEvent.messageId);
 			// assertEquals(publishEvent.messageSize, deliverEvent.messageSize);
@@ -450,7 +448,7 @@ class MessageMonitoringPluginTest {
 			assertEquals(true, ackEventOptional.isPresent());
 			MessageAcknowledgedEvent ackEvent = (MessageAcknowledgedEvent) ackEventOptional.get();
 
-			assertEquals(publishEvent.messageAddress, deliverEvent.publishAddress);
+			assertEquals(publishEvent.messageQueue, deliverEvent.publishQueue);
 			assertEquals(publishEvent.clientId, deliverEvent.publishClientId);
 			assertEquals(publishEvent.messageId, deliverEvent.messageId);
 			// assertEquals(publishEvent.messageSize, deliverEvent.messageSize);

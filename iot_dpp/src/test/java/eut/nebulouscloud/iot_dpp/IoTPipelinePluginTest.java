@@ -4,8 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -15,19 +13,17 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 import org.apache.activemq.artemis.api.core.Pair;
 import org.apache.activemq.artemis.core.config.ClusterConnectionConfiguration;
 import org.apache.activemq.artemis.core.config.Configuration;
-import org.apache.activemq.artemis.core.config.DivertConfiguration;
-import org.apache.activemq.artemis.core.config.TransformerConfiguration;
 import org.apache.activemq.artemis.core.config.impl.ConfigurationImpl;
 import org.apache.activemq.artemis.core.security.CheckType;
 import org.apache.activemq.artemis.core.security.Role;
-import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.apache.activemq.artemis.core.server.cluster.impl.MessageLoadBalancingType;
 import org.apache.activemq.artemis.core.server.embedded.EmbeddedActiveMQ;
-import org.apache.activemq.artemis.core.server.impl.ActiveMQServerImpl;
 import org.apache.activemq.artemis.spi.core.security.ActiveMQSecurityManager;
 import org.eclipse.paho.client.mqttv3.IMqttClient;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
@@ -48,13 +44,8 @@ import eut.nebulouscloud.iot_dpp.GroupIDExtractionParameters.GroupIDExpressionSo
 import eut.nebulouscloud.iot_dpp.monitoring.QueuesMonitoringMessage;
 import eut.nebulouscloud.iot_dpp.monitoring.QueuesMonitoringPlugin;
 import eut.nebulouscloud.iot_dpp.monitoring.QueuesMonitoringPlugin.QueuesMonitoringPluginConsumer;
-import eut.nebulouscloud.iot_dpp.monitoring.events.MessageLifecycleEvent;
 import eut.nebulouscloud.iot_dpp.pipeline.IoTPipelineConfigurator;
 import eut.nebulouscloud.iot_dpp.pipeline.IoTPipelineStepConfiguration;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 /**
  * Test the correct functionaltiy of QueuesMonitoringPlugin
  */
@@ -87,8 +78,6 @@ class IoTPipelinePluginTest {
 		config.addConnectorConfiguration("serverAt" + port + "Connector", "tcp://localhost:" + port);
 		config.addAcceptorConfiguration("netty", "tcp://localhost:" + port);
 		
-		
-
 		ClusterConnectionConfiguration cluster = new ClusterConnectionConfiguration();
 		cluster.setAddress("");
 		cluster.setConnectorName("serverAt" + port + "Connector");
@@ -106,23 +95,12 @@ class IoTPipelinePluginTest {
 
 		IoTPipelineConfigurator configuratorPlugin = new IoTPipelineConfigurator();
 		configuratorPlugin.init(
-				Map.of(IoTPipelineConfigurator.IOT_DPP_PIPELINE_STEPS_ENV_VAR, om.writeValueAsString(pipelineSteps),
-						"local_activemq_url", "tcp://localhost:"+port,
-						"local_activemq_user","artemis","local_activemq_password","artemis"));
+				Map.of(IoTPipelineConfigurator.IOT_DPP_PIPELINE_STEPS_ENV_VAR, om.writeValueAsString(pipelineSteps)));//falta port
 		config.getBrokerPlugins().add(configuratorPlugin);
 		
 		QueuesMonitoringPlugin plugin = new QueuesMonitoringPlugin();
-		plugin.init(Map.of("monitored_topic_prefix","all."+IoTPipelineConfigurator.IOT_DPP_TOPICS_PREFIX,"local_activemq_url","tcp://localhost:"+port,"query_interval_seconds",""+QueuesMonitoringProcesQueryIntervalSeconds,"local_activemq_user","artemis","local_activemq_password","artemis"));
-		plugin.registered(null);
-		plugin.process.consumer = new QueuesMonitoringPluginConsumer() {
-
-			@Override
-			public void consume(List<QueuesMonitoringMessage> messages) {
-				queuesMonitoringMessage.add(messages);
-
-			}
-		};
-		config.getBrokerMessagePlugins().add(plugin);
+		plugin.init(Map.of("monitored_queue_regex","^all\\.iotdpp\\..*","local_activemq_url","tcp://localhost:"+port,"query_interval_seconds",""+QueuesMonitoringProcesQueryIntervalSeconds));
+		config.getBrokerPlugins().add(plugin);
 		
 		EmbeddedActiveMQ server = new EmbeddedActiveMQ();
 		server.setSecurityManager(new ActiveMQSecurityManager() {
@@ -138,8 +116,26 @@ class IoTPipelinePluginTest {
 		});
 		server.setConfiguration(config);
 		server.start();
-	
-		Thread.sleep(1000*10);
+		while (!server.getActiveMQServer().isActive()) {
+		    System.out.println("Waiting for server to start...");
+		    Thread.sleep(500);
+		}
+		
+		
+		while(plugin.process == null)
+		{
+			System.out.println("Waiting for QueuesMonitoringPlugin to be registered...");
+		    Thread.sleep(500);
+		}
+		
+		plugin.process.consumer = new QueuesMonitoringPluginConsumer() {
+
+			@Override
+			public void consume(List<QueuesMonitoringMessage> messages) {
+				queuesMonitoringMessage.add(messages);
+
+			}
+		};
 		return server;
 	}
 
@@ -258,7 +254,7 @@ class IoTPipelinePluginTest {
 		
 		QueuesMonitoringPlugin plugin = new QueuesMonitoringPlugin();
 		plugin.init(Map.of(
-				"monitored_topic_prefix","all.iotdpp.","local_activemq_url","tcp://localhost:6161","query_interval_seconds",""+QueuesMonitoringProcesQueryIntervalSeconds,"local_activemq_user","artemis","local_activemq_password","artemis"));
+				"monitored_queue_regex","^all\\.iotdpp\\.*","query_interval_seconds",""+QueuesMonitoringProcesQueryIntervalSeconds));
 		plugin.registered(null);
 		plugin.process.consumer = new QueuesMonitoringPluginConsumer() {
 

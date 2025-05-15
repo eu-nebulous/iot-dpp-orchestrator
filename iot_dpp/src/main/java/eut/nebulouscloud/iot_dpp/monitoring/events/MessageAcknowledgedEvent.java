@@ -29,7 +29,7 @@ public class MessageAcknowledgedEvent extends MessageLifecycleEvent {
 	/**
 	 * Addres where the message was originally published
 	 */
-	public final String publishAddress;
+	public final String publishQueue;
 
 	/**
 	 * Time when the message was published (milliseconds since epoch).
@@ -42,10 +42,10 @@ public class MessageAcknowledgedEvent extends MessageLifecycleEvent {
 	public final long deliverTimestamp;
 
 	public MessageAcknowledgedEvent(MessageDeliveredEvent deliverEvent,long timestamp) {
-		super(deliverEvent.messageId, deliverEvent.messageAddress, deliverEvent.messageSize, timestamp);
+		super(deliverEvent.messageId, deliverEvent.messageQueue, deliverEvent.messageSize, timestamp);
 		this.node = deliverEvent.node;
 		this.clientId = deliverEvent.clientId;
-		this.publishAddress = deliverEvent.messageAddress;
+		this.publishQueue = deliverEvent.messageQueue;
 		this.publishNode = deliverEvent.publishNode;
 		this.publishClientId = deliverEvent.publishClientId;
 		this.publishTimestamp = deliverEvent.publishTimestamp;

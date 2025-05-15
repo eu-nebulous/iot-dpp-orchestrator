@@ -4,13 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Date;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.activemq.artemis.core.config.ClusterConnectionConfiguration;
 import org.apache.activemq.artemis.core.config.Configuration;
@@ -20,10 +17,6 @@ import org.apache.activemq.artemis.core.security.Role;
 import org.apache.activemq.artemis.core.server.cluster.impl.MessageLoadBalancingType;
 import org.apache.activemq.artemis.core.server.embedded.EmbeddedActiveMQ;
 import org.apache.activemq.artemis.spi.core.security.ActiveMQSecurityManager;
-import org.apache.qpid.protonj2.client.ClientOptions;
-import org.apache.qpid.protonj2.client.Delivery;
-import org.apache.qpid.protonj2.client.DeliveryMode;
-import org.apache.qpid.protonj2.client.Receiver;
 import org.eclipse.paho.client.mqttv3.IMqttClient;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.MqttCallback;
@@ -34,17 +27,9 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import eut.nebulouscloud.iot_dpp.monitoring.EMSQueuesMonitoringPlugin;
-import eut.nebulouscloud.iot_dpp.monitoring.EMSQueuesMonitoringPluginConsumer;
-import eut.nebulouscloud.iot_dpp.monitoring.MessageLifecycleMonitoringPlugin;
 import eut.nebulouscloud.iot_dpp.monitoring.QueuesMonitoringMessage;
 import eut.nebulouscloud.iot_dpp.monitoring.QueuesMonitoringPlugin;
 import eut.nebulouscloud.iot_dpp.monitoring.QueuesMonitoringPlugin.QueuesMonitoringPluginConsumer;
-import eut.nebulouscloud.iot_dpp.monitoring.QueuesMonitoringProcess;
-import eut.nebulouscloud.iot_dpp.monitoring.events.MessageAcknowledgedEvent;
-import eut.nebulouscloud.iot_dpp.monitoring.events.MessageDeliveredEvent;
-import eut.nebulouscloud.iot_dpp.monitoring.events.MessageLifecycleEvent;
-import eut.nebulouscloud.iot_dpp.monitoring.events.MessagePublishedEvent;
 
 /**
  * Test the correct functionaltiy of QueuesMonitoringPlugin
@@ -75,9 +60,7 @@ class QueuesMonitoringPluginTest {
 		config.setNodeManagerLockDirectory(foldersRoot + "/nodeManagerLock");
 		config.setPagingDirectory(foldersRoot + "/paging");
 		config.addConnectorConfiguration("serverAt" + port + "Connector", "tcp://localhost:" + port);
-		config.addAcceptorConfiguration("netty", "tcp://localhost:" + port);
-		
-		
+		config.addAcceptorConfiguration("netty", "tcp://localhost:" + port);		
 		ClusterConnectionConfiguration cluster = new ClusterConnectionConfiguration();
 		cluster.setAddress("");
 		cluster.setConnectorName("serverAt" + port + "Connector");
@@ -93,12 +76,7 @@ class QueuesMonitoringPluginTest {
 			}
 		}
 		QueuesMonitoringPlugin plugin = new QueuesMonitoringPlugin();
-		plugin.init(Map.of(
-				"monitored_topic_prefix","consumer.neb","local_activemq_url","tcp://localhost:"+port,"query_interval_seconds",""+QueuesMonitoringProcesQueryIntervalSeconds,"local_activemq_user","artemis","local_activemq_password","artemis"));
-		
-		config.getBrokerMessagePlugins().add(plugin);
-		plugin.registered(null);
-		plugin.process.consumer = new QueuesMonitoringPluginConsumer() {
+		plugin.consumer = new QueuesMonitoringPluginConsumer() {
 
 			@Override
 			public void consume(List<QueuesMonitoringMessage> messages) {
@@ -106,6 +84,11 @@ class QueuesMonitoringPluginTest {
 
 			}
 		};
+		plugin.init(Map.of(
+				"monitored_queue_regex","consumer\\.neb.*","local_activemq_url","tcp://localhost:"+port,"query_interval_seconds",""+QueuesMonitoringProcesQueryIntervalSeconds));
+		
+		config.getBrokerPlugins().add(plugin);
+
 		/*EMSQueuesMonitoringPlugin plugin = new EMSQueuesMonitoringPlugin();
 		plugin.init(Map.of("monitored_topic_prefix",".neb","local_activemq_url","tcp://localhost:"+port,"query_interval_seconds",""+QueuesMonitoringProcesQueryIntervalSeconds));
 		*/
@@ -124,6 +107,10 @@ class QueuesMonitoringPluginTest {
 		});
 		server.setConfiguration(config);
 		server.start();
+		while (!server.getActiveMQServer().isActive()) {
+		    System.out.println("Waiting for server to start...");
+		    Thread.sleep(500);
+		}
 		return server;
 	}
 
@@ -196,13 +183,16 @@ class QueuesMonitoringPluginTest {
 				message.setQos(2);
 				publisher.publish(testTopic, message);
 			}
-			Thread.sleep(QueuesMonitoringProcesQueryIntervalSeconds*1000*3);
 			
+			Thread.sleep(QueuesMonitoringProcesQueryIntervalSeconds*1000*3);
+			result.remove(0);
 			assertTrue(result.size()>=2);
 			assertTrue(result.stream().allMatch(r->r.size()==1)); //Only 1 topic is reported
 			assertTrue(result.stream().allMatch(r->r.get(0).queue.endsWith(testTopic)));//The reported topic is the test topic
 			for(int i=1;i<result.size();i++)
 			{	
+				LOGGER.info("idx{} => {}",i-1,result.get(i-1).get(0));	
+				LOGGER.info("idx{} => {}",i,result.get(i).get(0));
 				assertTrue(result.get(i-1).get(0).maxMessageAge<result.get(i).get(0).maxMessageAge);
 				assertTrue(result.get(i-1).get(0).messageCount<=result.get(i).get(0).messageCount);
 			}

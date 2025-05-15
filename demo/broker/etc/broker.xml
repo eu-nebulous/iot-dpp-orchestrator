@@ -306,6 +306,7 @@ under the License.
 	<broker-plugin class-name="eut.nebulouscloud.iot_dpp.monitoring.EMSMessageLifecycleMonitoringPlugin">
 	   <property key="monitored_topic_prefix" value="[all\.]?iotdpp"/>
 	   <property key="reporting_topic_prefix" value="monitoring."/>
+	   
 	   <property key="local_activemq_url" value="tcp://localhost:61616"/>
 	   <property key="query_interval_seconds" value="10"/>
 	   <property key="local_activemq_user" value="artemis"/>

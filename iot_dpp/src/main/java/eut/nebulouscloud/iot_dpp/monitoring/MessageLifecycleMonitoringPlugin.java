@@ -7,6 +7,7 @@ import org.apache.activemq.artemis.api.core.Message;
 import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.activemq.artemis.core.postoffice.RoutingStatus;
 import org.apache.activemq.artemis.core.postoffice.impl.PostOfficeImpl;
+import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.apache.activemq.artemis.core.server.LargeServerMessage;
 import org.apache.activemq.artemis.core.server.MessageReference;
 import org.apache.activemq.artemis.core.server.ServerConsumer;
@@ -40,7 +41,7 @@ public abstract class MessageLifecycleMonitoringPlugin implements ActiveMQServer
 
 	Logger LOGGER = LoggerFactory.getLogger(MessageLifecycleMonitoringPlugin.class);
 	
-	public String monitoredTopicPrefix = "";
+	public String monitoredQueueRegex = "";
 	
 	protected ObjectMapper om = new ObjectMapper();
 	/**
@@ -60,6 +61,14 @@ public abstract class MessageLifecycleMonitoringPlugin implements ActiveMQServer
 	 * Annotation used to mark the moment a message was sent to the client
 	 */
 	SimpleString DELIVER_TIMESTAMP_ANNOTATION = new SimpleString("NEBULOUS_DELIVER_TIMESTAMP");
+	
+	
+	private ActiveMQServer server;
+
+    @Override
+    public void registered(ActiveMQServer server) {
+        this.server = server;
+    }
 
 	/**
 	 * Abstract method called whenever a message event is raised: - a producer
@@ -77,9 +86,7 @@ public abstract class MessageLifecycleMonitoringPlugin implements ActiveMQServer
 	 * @return
 	 */
 	private String getServerName(ServerConsumer consumer) {
-		// TODO: Find a better way of retrieving server name rather than parsing the
-		// string representation of the consumer object.
-		return consumer.toString().split("server=ActiveMQServerImpl::name=")[1].split("]")[0];
+		return server.getIdentity();
 	}
 
 	/**
@@ -164,8 +171,8 @@ public abstract class MessageLifecycleMonitoringPlugin implements ActiveMQServer
 		try {
 
 			
-			if (!message.getAddress().toString().matches(monitoredTopicPrefix)) {
-				LOGGER.trace("Ignoring "+message.getAddress().toString()+" Not matching with "+monitoredTopicPrefix);
+			if (!message.getAddress().toString().matches(monitoredQueueRegex)) {
+				LOGGER.trace("Ignoring "+message.getAddress().toString()+" Not matching with "+monitoredQueueRegex);
 				return;
 			}	
 			/**
@@ -211,8 +218,8 @@ public abstract class MessageLifecycleMonitoringPlugin implements ActiveMQServer
 		try {
 
 
-			if (!reference.getQueue().getAddress().toString().matches(monitoredTopicPrefix)) {
-				LOGGER.trace("Ignoring "+reference.getQueue().getAddress().toString()+" Not matching with "+monitoredTopicPrefix);
+			if (!reference.getQueue().getAddress().toString().matches(monitoredQueueRegex)) {
+				LOGGER.trace("Ignoring "+reference.getQueue().getAddress().toString()+" Not matching with "+monitoredQueueRegex);
 				return;
 			}
 
@@ -233,8 +240,8 @@ public abstract class MessageLifecycleMonitoringPlugin implements ActiveMQServer
 
 		try {
 
-			if (!reference.getQueue().getAddress().toString().matches(monitoredTopicPrefix)) {
-				LOGGER.trace("Ignoring "+reference.getQueue().getAddress().toString()+" Not matching with "+monitoredTopicPrefix);
+			if (!reference.getQueue().getAddress().toString().matches(monitoredQueueRegex)) {
+				LOGGER.trace("Ignoring "+reference.getQueue().getAddress().toString()+" Not matching with "+monitoredQueueRegex);
 				return;
 			}
 
