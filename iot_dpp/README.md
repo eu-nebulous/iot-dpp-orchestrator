@@ -98,7 +98,7 @@ To better understand better the NebulOuS approach, consider the vehicle fleet mo
 
 Figure 8: Vehicle fleet monitoring IoT data pipeline example
 
-Monitored vehicles are equipped with a data logger that collects information about GPS position of the vehicle and publishes it to the NebulOuS input queue. GPS monitoring is known to be error prone, so the user wants to perform an outlier detection on the raw data (filtering step). The applied algorithm needs to know the last N readings to classify the Nth+1 reading. As a result, this outlier detection can be parallelized up to one instance of the step per vehicle and must always be guaranteed that readings from a vehicle are processed by the same instance. Next step of the process is to detect if the vehicle leaves a delimited geographic area for longer than a certain period (geofencing step). Again, this operation can be parallelized but the events from one vehicle need to be processed by the same worker. If a vehicle leaves the designated area, a notification is to be sent to the manager of the fleet. This notification contains a human readable message about the location of the vehicle (e.g: street address). For this, a reverse geocoding process needs to be executed on the latitude, longitude data of the egress event (reverse geocoding step). This step can be parallelized infinitely, as each event can be processed separately. With the result of the reverse geocoding, a notification step is responsible for managing the actual sending of the notification via mail (notification step). This operation doesn’t allow for parallelization. After the filtering step, processed data is to be stored on a time-series database (storing step). The parallelization level of this step is limited by the number of concurrent connections to the underlying storage system (e.g., 5).
+Monitored vehicles are equipped with a data logger that collects information about GPS position of the vehicle and publishes it to the NebulOuS input queue. GPS monitoring is known to be error prone, so the user wants to perform an outlier detection on the raw data (filtering step). The applied algorithm needs to know the last N readings to classify the Nth+1 reading. As a result, this outlier detection can be parallelized up to one instance of the step per vehicle and must always be guaranteed that readings from a vehicle are processed by the same instance. Next step of the process is to detect if the vehicle leaves a delimited geographic area for longer than a certain period (geofencing step). Again, this operation can be parallelized but the events from one vehicle need to be processed by the same worker. If a vehicle leaves the designated area, a notification is to be sent to the manager of the fleet. This notification contains a human readable message about the location of the vehicle (e.g: street address). For this, a reverse geocoding process needs to be executed on the latitude, longitude data of the egress event (reverse geocoding step). This step can be parallelized infinitely, as each event can be processed separately. With the result of the reverse geocoding, a notification step is responsible for managing the actual sending of the notification via mail (notification step). This operation doesn`t allow for parallelization. After the filtering step, processed data is to be stored on a time-series database (storing step). The parallelization level of this step is limited by the number of concurrent connections to the underlying storage system (e.g., 5).
 
 ![image](https://github.com/eu-nebulous/nebulous/assets/172278014/75cb9681-4f48-4a41-a7e4-e8d39e8be080)
 
@@ -163,9 +163,9 @@ With this configuration, once the application is deployed, the metrics and event
 A plugin that handles the storage of messages sent to the message broker as data points in the InfluxDB instances deployed on the application cluster master (or any other InfluxDB instance). 
 
 In InfluxDB, individual sensor readings or measurements are stored as data points stored in buckets. Each data point consists of three core components :
-•	Measurement Name: A string identifier that describes the type of data being collected (e.g., "temperature", "humidity", "cpu_usage"). This helps organize related data points into logical groups.
-•	Fields: Key-value pairs that contain the actual measurement data. Field keys are strings, and values can be either numeric or string types. For example, a temperature reading might include fields like "value: 23.5" or "unit: Celsius".
-•	Tags: Key-value pairs (both keys and values must be strings) that store metadata about the measurement. Tags are typically used for categorizing and filtering data points. For example, "sensor_id: temp_01" or "location: room_123".
+- Measurement Name: A string identifier that describes the type of data being collected (e.g., "temperature", "humidity", "cpu_usage"). This helps organize related data points into logical groups.
+- Fields: Key-value pairs that contain the actual measurement data. Field keys are strings, and values can be either numeric or string types. For example, a temperature reading might include fields like "value: 23.5" or "unit: Celsius".
+- Tags: Key-value pairs (both keys and values must be strings) that store metadata about the measurement. Tags are typically used for categorizing and filtering data points. For example, "sensor_id: temp_01" or "location: room_123".
 The developed DataPersistorPlugin plugin accepts a configuration consisting of a collection of  MessageDataExtractorDefinition objects, each defining precise rules for message processing and storage. As illustrated in Figure 21, each MessageDataExtractorDefinition specifies how to transform incoming messages into InfluxDB data points, with the following properties that control filtering, data extraction, and storage parameters:
 ```
 {
@@ -178,26 +178,26 @@ The developed DataPersistorPlugin plugin accepts a configuration consisting of a
 }			
 ```
 
-Filter Expression: A composite expression that determines whether to generate a data point from an incoming message. It follows the format ‘<address_match_expression>|<body_match_expression>|<join_condition>’ where: 
-•	The section ‘<address_match_expression>’ contains a regular expression matched against the message address using Java  ‘String.match’ method.
-•	The section ‘<body_match_expression>’ contain a JSONPath expression that must return a non-null object to evaluate as true.
-•	The section ‘<join_condition>’ specifies the logical operator ("AND" or "OR") between the two expressions.
+Filter Expression: A composite expression that determines whether to generate a data point from an incoming message. It follows the format `<address_match_expression>|<body_match_expression>|<join_condition>` where: 
+- The section `<address_match_expression>` contains a regular expression matched against the message address using Java  `String.match` method.
+- The section `<body_match_expression>` contain a JSONPath expression that must return a non-null object to evaluate as true.
+- The section `<join_condition>` specifies the logical operator ("AND" or "OR") between the two expressions.
 
 Bucket Expression: A template string that determines the target storage bucket. It supports two parameter extraction methods:
-•	Body parameters, expressed with the template ‘{BODY|<jsonpath>}’, where ‘<jsonpath>’ section contains a JSONPath expression to match against the body of the message. If must return a string value.
-•	Address parameters, expressed with the template ‘{ADDRESS|<match>|<template>}’ where ‘<match>’ section represents a Java regular expression to match against the address of the message and the ‘<template>’ section is a string containing literals and references to the matched groups $[1...n] from the ‘<match>’ expression.
+- Body parameters, expressed with the template `{BODY|<jsonpath>}`, where `<jsonpath>` section contains a JSONPath expression to match against the body of the message. If must return a string value.
+- Address parameters, expressed with the template `{ADDRESS|<match>|<template>}` where `<match>` section represents a Java regular expression to match against the address of the message and the `<template>` section is a string containing literals and references to the matched groups $[1...n] from the `<match>` expression.
 The plugin evaluates the bucket expression, substituting all the body and address parameters occurrences with the result of evaluating these expressions.
 Measurement Expression: A template string that follows the same templating rules as the bucket expression to determine the measurement name.
 
 Field and Tag Expressions: Collections of expressions that extract key-value pairs for fields and tags. Both support three formats:
 
-•	Address-based extraction (‘ADDRESS|<match>|<template>’) where ‘<match>’ is a regular expression to be matched against the message address and ‘<template>’ is a string containing literals and references to the matched groups ($1…n) from the ‘<match>’ expression. The resulting string must conform to the structure ‘<key>:<value>’ where both ‘<key>’ and ‘<value>’ can be literals or matched groups from the ‘<match>’ expression.
+- Address-based extraction (`ADDRESS|<match>|<template>`) where `<match>` is a regular expression to be matched against the message address and `<template>` is a string containing literals and references to the matched groups ($1…n) from the `<match>` expression. The resulting string must conform to the structure `<key>:<value>` where both `<key>` and `<value>` can be literals or matched groups from the `<match>` expression.
 
-•	Body dictionary extraction: (‘BODY|<context_jsonpath>|<key_values_jsonpath>’) where ‘<context_jsonpath>’ is a JSONPath expression to limit the context of the query (‘$’ will match the full object) and ‘<key_values_jsonpath>’ is a JSONPath expression that will return a dictionary of key values from the body.
+- Body dictionary extraction: (`BODY|<context_jsonpath>|<key_values_jsonpath>`) where `<context_jsonpath>` is a JSONPath expression to limit the context of the query (`$` will match the full object) and `<key_values_jsonpath>` is a JSONPath expression that will return a dictionary of key values from the body.
 
-•	Separate keys and values extraction (‘BODY|<context_jsonpath>|<keys_jsonpath>|<values_jsonpath>’) where ‘<context_jsonpath>’ is a JSONPath expression to limit the context of the query (‘$’ will match the full object)  and ‘<keys_jsonpath>’ is either a literal or a JSONPath expression that will return a key or list of keys and  ‘<values_jsonpath>’ is a JSONPath expression that will return a value or  list of values.
+- Separate keys and values extraction (`BODY|<context_jsonpath>|<keys_jsonpath>|<values_jsonpath>`) where `<context_jsonpath>` is a JSONPath expression to limit the context of the query (`$` will match the full object)  and `<keys_jsonpath>` is either a literal or a JSONPath expression that will return a key or list of keys and  `<values_jsonpath>` is a JSONPath expression that will return a value or  list of values.
 
-DateTime Expression: Optional expression to extract the message timestamp. When specified, uses the format ‘BODY|<jsonpath>|<date_format>’ where ‘<jsonpath>’  is a JSONPath that will extract a numeric/string value from the body and ‘<date_format>’ is the format of the extracted value, being either “TIMESTAMP” meaning an integer value representing the EPOCH time in milliseconds or a date format parseable by Java SimpleDateFormat .
+DateTime Expression: Optional expression to extract the message timestamp. When specified, uses the format `BODY|<jsonpath>|<date_format>` where `<jsonpath>`  is a JSONPath that will extract a numeric/string value from the body and `<date_format>` is the format of the extracted value, being either `TIMESTAMP` meaning an integer value representing the EPOCH time in milliseconds or a date format parseable by Java SimpleDateFormat .
 
 When the message broker receives a message, it processes it through the configured MessageDataExtractorDefinitions in sequence. Each definition first evaluates its filtering condition against the incoming message. Only messages that satisfy the filtering criteria proceed to the data point extraction phase, where the configured extraction rules transform the message content into InfluxDB data points according to the specified measurement, field, and tag definitions.
 
@@ -206,24 +206,28 @@ When the message broker receives a message, it processes it through the configur
 A plugin that configures the message broker to accept operations (read, send, create, etc...) on queues by users defined in an external Keycloak server.
 
 The security model of Keycloak can be summarised in with the following core concepts:
-•	Users: Entities that can log into systems, each with attributes such as name, email, etc.
-•	Groups: Collections of users.
-•	Roles: Tags assigned to users or groups that determine their permissions within client applications.
-•	Clients: Applications that authenticate and authorize users.
-•	Realms: Isolated domains within a Keycloak instance that define their own users, clients, roles, and groups. A single Keycloak deployment can support multiple realms.
+- Users: Entities that can log into systems, each with attributes such as name, email, etc.
+- Groups: Collections of users.
+- Roles: Tags assigned to users or groups that determine their permissions within client applications.
+- Clients: Applications that authenticate and authorize users.
+- Realms: Isolated domains within a Keycloak instance that define their own users, clients, roles, and groups. A single Keycloak deployment can support multiple realms.
+
 In this model, a user may be assigned roles directly or inherit them through group membership. These roles are later used by client applications to authorize specific actions such as reading, creating, or deleting resources.
 Conversely, ActiveMQ Artemis defines a security model with the following concepts:
-•	Users: Clients that connect to the message broker to perform actions such as reading from or writing to queues and addresses.
-•	Roles: Labels associated with users that determine what operations they are allowed to perform.
-•	Security Settings: Configuration blocks that define:
-o	A match pattern (an address or queue name pattern).
-o	A list of permissions (e.g., send, consume, createDurableQueue, deleteDurableQueue, createNonDurableQueue, deleteNonDurableQueue) and the roles authorized to perform each.
+- Users: Clients that connect to the message broker to perform actions such as reading from or writing to queues and addresses.
+- Roles: Labels associated with users that determine what operations they are allowed to perform.
+- Security Settings: Configuration blocks that define:
+  - A match pattern (an address or queue name pattern).
+  - A list of permissions (e.g., send, consume, createDurableQueue, deleteDurableQueue, createNonDurableQueue, deleteNonDurableQueue) and the roles authorized to perform each.
+
 In this model, a user is assigned a list of roles, and the broker defines permissions over queues and addresses for these roles based on a pattern match (regex).
-The developed plugin is responsible for synchronizing the roles defined in Keycloak with the corresponding roles and security settings in the ActiveMQ Artemis message broker. To align Keycloak’s role model with Artemis's role and permission structure, the plugin leverages role attributes assigned to each Keycloak role.
+
+The developed plugin is responsible for synchronizing the roles defined in Keycloak with the corresponding roles and security settings in the ActiveMQ Artemis message broker. To align Keycloak`s role model with Artemis's role and permission structure, the plugin leverages role attributes assigned to each Keycloak role.
+
 Only roles within the Keycloak realm that meet the following criteria are considered:
-•	The role must have the attribute is_nebulous_role set to true.
-•	The role must include a match attribute, which defines the target address or queue pattern in Artemis.
-•	The role must specify the allowed permissions, which may include:
+- The role must have the attribute is_nebulous_role set to true.
+- The role must include a match attribute, which defines the target address or queue pattern in Artemis.
+- The role must specify the allowed permissions, which may include:
 send, consume, createDurableQueue, deleteDurableQueue, createNonDurableQueue, and deleteNonDurableQueue.
 The plugin periodically retrieves all roles from the designated Keycloak realm that satisfy these conditions. It then maps them into the corresponding role definitions and security settings in Artemis, ensuring that access control policies remain synchronized and up to date across both systems.
 
