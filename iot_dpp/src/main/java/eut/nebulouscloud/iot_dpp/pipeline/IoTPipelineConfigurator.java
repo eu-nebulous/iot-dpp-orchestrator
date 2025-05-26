@@ -291,11 +291,23 @@ public class IoTPipelineConfigurator implements ActiveMQServerPlugin {
 	private Map<String, IoTPipelineStepConfiguration> parsePipelineSteps(String serializedPipelineSteps) {
 		ObjectMapper om = new ObjectMapper();
 		try {
+			String jsonContent = serializedPipelineSteps;
+			
+			// If the input ends with .json, treat it as a file path and read its contents
+			if (serializedPipelineSteps.toLowerCase().endsWith(".json")) {
+				LOGGER.info("Reading pipeline steps from JSON file: " + serializedPipelineSteps);
+				try {
+					jsonContent = new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(serializedPipelineSteps)));					
+				} catch (Exception ex) {
+					LOGGER.error("Failed to read JSON file: " + serializedPipelineSteps, ex);
+					return new HashMap<String, IoTPipelineStepConfiguration>();
+				}
+			}
 
 			TypeReference<Map<String, IoTPipelineStepConfiguration>> typeReference = new TypeReference<Map<String, IoTPipelineStepConfiguration>>() {
 			};
 
-			return om.readValue(serializedPipelineSteps.getBytes(), typeReference);
+			return om.readValue(jsonContent.getBytes(), typeReference);
 
 		} catch (Exception ex) {
 			LOGGER.error(String.format("Problem reading IoTPipelineStepConfiguration from JSON '%s'",
@@ -311,6 +323,7 @@ public class IoTPipelineConfigurator implements ActiveMQServerPlugin {
 				.orElseThrow(
 						() -> new IllegalStateException(IOT_DPP_PIPELINE_STEPS_ENV_VAR + " parameter is not defined"));
 
+		LOGGER.info("pipelineStepsString: " + pipelineStepsString);		
 		pipelineSteps = parsePipelineSteps(pipelineStepsString);
 
 		try {
