@@ -136,10 +136,13 @@ class ManualTestUtilities {
 		
 		Connector localConnector = new Connector("appClusterClient", new ConnectorHandler() {		
 		//}, List.of(), List.of(controlPlaneConsummer), false, false,new StaticExnConfig("158.37.63.86", 32757, "admin", "nebulous"));
-		}, List.of(), List.of(controlPlaneConsummer), false, false,new StaticExnConfig("158.37.63.86", 32757, "bridge-3a87ca21-f869-4a96-8939-074023b3eadd", "vpwfDz7PJ14GZd"));
+		//}, List.of(), List.of(controlPlaneConsummer), false, false,new StaticExnConfig("158.37.63.86", 32757, "bridge-3a87ca21-f869-4a96-8939-074023b3eadd", "vpwfDz7PJ14GZd"));
 		
-		//}, List.of(), List.of(controlPlaneConsummer), false, false,new StaticExnConfig("158.37.63.86", 32757, user, "supersecret"));
-		//}, List.of(), List.of(controlPlaneConsummer), false, false,new StaticExnConfig("52.201.251.8", 30356, "admin", "nebulous"));
+		}, List.of(), List.of(controlPlaneConsummer), false, false,new StaticExnConfig("158.37.63.86", 32757, "admin", "nebulous"));
+		//}, List.of(), List.of(controlPlaneConsummer), false, false,new StaticExnConfig("184.72.76.206", 30356, "admin", "nebulous"));
+		//}, List.of(), List.of(controlPlaneConsummer), false, false,new StaticExnConfig("184.72.76.206", 30356,null,null));
+		//}, List.of(), List.of(controlPlaneConsummer), false, false,new StaticExnConfig("localhost", 61616,null,null));
+		//}, List.of(), List.of(controlPlaneConsummer), false, false,new StaticExnConfig("localhost", 61616,"admin","vpwfDz7PJ14GZd"));
 		localConnector.start();
 		
 		while(true)
