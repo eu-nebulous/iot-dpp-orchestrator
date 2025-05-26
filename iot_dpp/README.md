@@ -56,7 +56,7 @@ Apache Artemis plugin responsible for parsing the IoT pipeline definition JSON a
 
 The following parameters are needed for the pluggin:
 
-- IOT_DPP_PIPELINE_STEPS: A JSON encoded string containing the configuration for the IoT pipeline. This configuration is a `Map<String, IoTPipelineStepConfiguration>` where keys are names of the pipeline steps and the values are `IoTPipelineStepConfiguration` providing: 
+- IOT_DPP_PIPELINE_STEPS: A JSON encoded string (or a path to a JSON file ending in '.json') containing the configuration for the IoT pipeline. This configuration is a `Map<String, IoTPipelineStepConfiguration>` where keys are names of the pipeline steps and the values are `IoTPipelineStepConfiguration` providing: 
 	- inputStream (String): The input stream from the pipeline step.
 	- groupingKeyAccessor (GroupIDExtractionParameters): The config to extract group ID for each input message of the step. 
 	

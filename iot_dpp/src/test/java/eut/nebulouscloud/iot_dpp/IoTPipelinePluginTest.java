@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -93,9 +95,22 @@ class IoTPipelinePluginTest {
 			}
 		}
 
+		/**
+		 * Write the contents of pipelineSteps to a json file and feed it to the plugin
+		 */
 		IoTPipelineConfigurator configuratorPlugin = new IoTPipelineConfigurator();
+		Path tempFile = Files.createTempFile("pipeline-steps", ".json");
+		Files.write(tempFile, om.writeValueAsString(pipelineSteps).getBytes());
 		configuratorPlugin.init(
-				Map.of(IoTPipelineConfigurator.IOT_DPP_PIPELINE_STEPS_ENV_VAR, om.writeValueAsString(pipelineSteps)));//falta port
+				Map.of(IoTPipelineConfigurator.IOT_DPP_PIPELINE_STEPS_ENV_VAR, tempFile.toString()));
+		
+		/**
+		* Alternatively, pass the contents as string
+		configuratorPlugin.init(
+				Map.of(IoTPipelineConfigurator.IOT_DPP_PIPELINE_STEPS_ENV_VAR, om.writeValueAsString(pipelineSteps)));
+		 * 
+		 */
+		
 		config.getBrokerPlugins().add(configuratorPlugin);
 		
 		QueuesMonitoringPlugin plugin = new QueuesMonitoringPlugin();
