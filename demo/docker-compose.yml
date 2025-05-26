@@ -1,27 +1,25 @@
 version: '3.7'      
 services:
   activemq:
-    image: apache/activemq-artemis:2.37.0-alpine
+    image: quay.io/nebulous/activemq-broker:latest
     container_name: activemq
     restart: always
     ports:
         - 6161:61616
-        - 8161:8161 #activemq mgmt ui
-        - 6167:61619 #stomp
-        - 5672:5672 # amqp
-        - 1883:1883 # mqtt
-        - 1889:1889 #mqtt WS
     logging:
       driver: "json-file"
       options:
         max-size: "50M"
         max-file: "2" 
     volumes:
-        - ./broker/etc:/var/lib/artemis-instance/etc-override
-        - ./broker/lib:/var/lib/artemis-instance/lib
+        - ./broker/etc/broker.xml:/var/lib/artemis-instance/etc-override/broker.xml
+        - ./broker/etc/log4j2.properties:/var/lib/artemis-instance/etc-override/log4j2.properties
+        - ./pipeline.json:/pipeline.json
     environment:
         ARTEMIS_MAX_MEMORY: 1024M        
-        IOT_PIPELINE_STEPS: "{&quot;stepA&quot;: {&quot;inputStream&quot;: &quot;src&quot;,&quot;groupingKeyAccessor&quot;: {&quot;source&quot;:&quot;BODY_JSON&quot;,&quot;expression&quot;: &quot;fieldA&quot;}},&quot;stepB&quot;: {&quot;inputStream&quot;:&quot;stepA&quot;,&quot;groupingKeyAccessor&quot;: {&quot;source&quot;: &quot;BODY_JSON&quot;,&quot;expression&quot;:&quot;fieldB&quot;}},&quot;stepC&quot;: {&quot;inputStream&quot;: &quot;stepB&quot;,&quot;groupingKeyAccessor&quot;:{&quot;source&quot;: &quot;BODY_JSON&quot;,&quot;expression&quot;: &quot;fieldC&quot;}},&quot;stepD&quot;:{&quot;inputStream&quot;: &quot;stepA&quot;,&quot;groupingKeyAccessor&quot;: {&quot;source&quot;: &quot;BODY_JSON&quot;,&quot;expression&quot;: &quot;fieldD&quot;}}}"
+        IOT_PIPELINE_STEPS: "/pipeline.json"
+        ACTIVEMQ_ADMIN_PASSWORD: artemis
+        
         
   step_a:
     image: ems-nebulous-iot/worker
