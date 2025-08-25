@@ -79,7 +79,7 @@ public class EMSMessageLifecycleMonitoringPlugin extends MessageLifecycleMonitor
 			
 			for(String metric : metrics.keySet())
 			{
-				this.publisher._send(String.join("_",messageAddress,eventType,metric), metrics.get(metric), event.timestamp);
+				this.publisher._send(String.join("_",messageAddress,eventType,metric,"SENSOR"), metrics.get(metric), event.timestamp);
 			}
 			
 		} catch (Exception e) {

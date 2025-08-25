@@ -166,7 +166,9 @@ In InfluxDB, individual sensor readings or measurements are stored as data point
 - Measurement Name: A string identifier that describes the type of data being collected (e.g., "temperature", "humidity", "cpu_usage"). This helps organize related data points into logical groups.
 - Fields: Key-value pairs that contain the actual measurement data. Field keys are strings, and values can be either numeric or string types. For example, a temperature reading might include fields like "value: 23.5" or "unit: Celsius".
 - Tags: Key-value pairs (both keys and values must be strings) that store metadata about the measurement. Tags are typically used for categorizing and filtering data points. For example, "sensor_id: temp_01" or "location: room_123".
+
 The developed DataPersistorPlugin plugin accepts a configuration consisting of a collection of  MessageDataExtractorDefinition objects, each defining precise rules for message processing and storage. As illustrated in Figure 21, each MessageDataExtractorDefinition specifies how to transform incoming messages into InfluxDB data points, with the following properties that control filtering, data extraction, and storage parameters:
+
 ```
 {
       filterExpression: ".*\.vehicles\..*\.location$|$|AND",
