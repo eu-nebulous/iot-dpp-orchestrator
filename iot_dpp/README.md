@@ -65,6 +65,22 @@ ActiveMQ Artemis plugin for tracking the lifecycle of messages inside an ActiveM
 
 [\[2\]](https://openproject.nebulouscloud.eu/#_ftnref2) [https://activemq.apache.org/components/artemis/documentation/](https://activemq.apache.org/components/artemis/documentation/)
 
+
+Events are transformed into metrics sent to the EMS for further usage in the app scalability definition. The metrics generated are the following:
+
+- eventType: MessagePublished
+- metrics: Size
+
+- eventType: MessageDelivered
+- metrics: Size, Latency
+
+- eventType: MessageAcknowledged
+- metrics: Size, Latency
+
+The metrics can be referenced in the metric model like:
+
+`{messageAddress}_{eventType}_{metric}`
+
 The following parameters are needed for the plugin:
 - monitored_queue_regex: A regex that matched against the queue names found on the broker to decide if monitoring data is to be generated for them.
 - reporting_topic_prefix: The prefix of the topic where monitoring data for each monitored queue will be published (defaults to `monitoring`).
