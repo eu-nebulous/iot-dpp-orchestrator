@@ -68,14 +68,18 @@ ActiveMQ Artemis plugin for tracking the lifecycle of messages inside an ActiveM
 
 Events are transformed into metrics sent to the EMS for further usage in the app scalability definition. The metrics generated are the following:
 
-- eventType: MessagePublished
-- metrics: Size
-
-- eventType: MessageDelivered
-- metrics: Size, Latency
-
-- eventType: MessageAcknowledged
-- metrics: Size, Latency
+```
+ eventType: MessagePublished
+ metrics: Size
+```
+```
+ eventType: MessageDelivered
+ metrics: Size, Latency
+```
+```
+ eventType: MessageAcknowledged
+ metrics: Size, Latency
+```
 
 The metrics can be referenced in the metric model like:
 
