@@ -163,10 +163,10 @@
 		</dependency>
 
 		<dependency>
-			<groupId>eu.nebulouscloud</groupId>
+			<groupId>io.github.eu-nebulous</groupId>
 			<artifactId>exn-connector-java</artifactId>
 			<version>1.0-SNAPSHOT</version>
-			<scope>compile</scope>
+			<scope>test</scope>
 			<exclusions>
 				<exclusion>
 					<groupId>org.slf4j</groupId>
