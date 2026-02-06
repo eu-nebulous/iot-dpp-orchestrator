@@ -28,7 +28,7 @@ public class ControlPlaneBridgePlugin extends NebulOuSBridge {
 			"eu.nebulouscloud.optimiser.controller.model", "eu.nebulouscloud.optimiser.controller.metric_list",
 			"eu.nebulouscloud.optimiser.controller.app_state", "eu.nebulouscloud.monitoring.slo.new",
 			"eu.nebulouscloud.optimiser.solver.solution", "eu.nebulouscloud.optimiser.solver.context",
-			"eu.nebulouscloud.solver.state","eu.nebulouscloud.monitoring.commands","eu.nebulouscloud.monitoring.metric_list","eu.nebulouscloud.ems.boot.reply" };
+			"eu.nebulouscloud.solver.state","eu.nebulouscloud.monitoring.commands","eu.nebulouscloud.monitoring.metric_list","eu.nebulouscloud.ems.boot.reply","eu.nebulouscloud.app_cluster.influxdb.get" };
 
 	private String getBody(Message message) {
 		return (String) ((Map<String, Object>) ((AmqpValue) ((AMQPStandardMessage) message).getBody()).getValue())

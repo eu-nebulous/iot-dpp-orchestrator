@@ -29,7 +29,7 @@ public class AppBridgePlugin extends NebulOuSBridge {
 
 	private static String[] appToControlPLaneTopics = new String[] { "eu.nebulouscloud.ui.dsl.metric_model",
 			"eu.nebulouscloud.monitoring.slo.new", "eu.nebulouscloud.optimiser.solver.solution",
-			"eu.nebulouscloud.solver.state","eu.nebulouscloud.monitoring.commands.reply","eu.nebulouscloud.ems.boot"  };
+			"eu.nebulouscloud.solver.state","eu.nebulouscloud.monitoring.commands.reply","eu.nebulouscloud.ems.boot","eu.nebulouscloud.app_cluster.influxdb.get.reply"  };
 
 	private void createBridgeFromAppToControlPlane(String appId, String appBridgePassword) {
 		String connectorName = "nebulous_control_plane";

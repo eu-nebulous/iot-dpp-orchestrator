@@ -117,10 +117,41 @@ class ClusterInfoTest {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
-				if("topic://eu.nebulouscloud.app_cluster.influxdb.get.reply".equals(to))
+				
+				if("topic://eu.nebulouscloud.app_cluster.influxdb.get".equals(to))
 				{
 					LOGGER.info("");
 				}
+				Object correlationId = 0;
+				try {
+					correlationId = message.correlationId();
+				} catch (ClientException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				String content ="";
+				try{
+					content = body.toString();
+					content = om.writeValueAsString(body);
+				}
+				catch (Exception e) {
+				}
+				String subject = "?";
+				try {
+					subject = message.subject();
+				} catch (ClientException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				Map<Object, Object> props = new HashMap<Object, Object>();
+				try {
+					message.forEachProperty((k, v) -> props.put(k, v));
+				} catch (ClientException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				LOGGER.info("\r\n{}\r\nsubject:{}\r\nproperties:{}\r\ncorrelationId:{}\r\npayload:{}", to, subject,
+						props, correlationId,content);
 			}
 		}, true, true);
 		
@@ -147,8 +178,12 @@ class ClusterInfoTest {
 				ClusterInfoPlugin.INFLUXDB_CREDENTIALS_GET_TOPIC, true, true);
 		testContext.registerPublisher(getInfluxdbconnection);
 		Map<String, Object> msg = Map.of("body", "");
-		Map<String, Object> response = getInfluxdbconnection.sendSync(msg, "testapp", null, false);
+		Map<String, Object> response = getInfluxdbconnection.sendSync(msg, "30a13d38-61a8-4523-892e-3529f1e19cc3", null, false);
 		LOGGER.info(response.toString());
+		while(true)
+		{
+			Thread.sleep(1000);
+		}
 		
 	}
 
